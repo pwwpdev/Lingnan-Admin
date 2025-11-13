@@ -8,12 +8,52 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
 
   useImperativeHandle(ref, () => ({
     tableData,
-    convertToHKT
+    convertToHKT,
+    exportToCSV: () => {
+      const csvContent = generateCSV();
+      downloadCSV(csvContent, `water-leak-report-${dateRange.fromDate}-to-${dateRange.toDate}.csv`);
+    }
   }));
 
   const rowsPerPage = 15;
   const indexOfLastRow = currentPage * rowsPerPage;
   const indexOfFirstRow = indexOfLastRow - rowsPerPage;
+
+  // Generate CSV function
+  const generateCSV = () => {
+    const headers = ['Sensor ID', 'Leak Status', 'Leak Time', 'Resume Time', 'Duration', 'Acknowledgment Status', 'Acknowledged By', 'Acknowledgment Time'];
+    const csvRows = [headers.join(',')];
+    
+    filteredData.forEach(item => {
+      const row = [
+        item.sensor,
+        item.leakage_status === 'leak' || item.leakage_status === 'leak detected' ? 'Leak Detected' : 'No Leak',
+        convertToHKT(item.leak_time),
+        item.resume_time ? convertToHKT(item.resume_time) : 'N/A',
+        item.duration || 'N/A',
+        item.ack_time ? 'Acknowledged' : 'Pending',
+        item.userName || '',
+        item.ack_time ? convertToHKT(item.ack_time) : ''
+      ];
+      csvRows.push(row.map(field => `"${field}"`).join(','));
+    });
+    
+    return csvRows.join('\n');
+  };
+  
+  const downloadCSV = (csvContent, fileName) => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
 
   const filteredData =
     deviceFilter === "all"
@@ -23,14 +63,37 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
   const totalPages = Math.ceil(filteredData.length / rowsPerPage);
   const currentRows = filteredData.slice(indexOfFirstRow, indexOfLastRow);
 
-  // Fetch Water Leak data
+  // Format duration helper function
+  const formatDuration = (milliseconds) => {
+    if (!milliseconds || milliseconds < 0) return "N/A";
+    
+    const seconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) {
+      return `${days}d ${hours % 24}h ${minutes % 60}m`;
+    } else if (hours > 0) {
+      return `${hours}h ${minutes % 60}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds % 60}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  };
+
+  // SIMPLIFIED: Fetch Water Leak data from unified API
   const fetchWaterLeakData = async () => {
     setIsLoading(true);
     try {
-      // Use GET request for water leak data
-      const url = 'https://lnuwaterleakack-dot-optimus-hk.df.r.appspot.com/ack-leaks';
-
-      const response = await fetch(url);
+      // Use the new unified API that contains everything
+      const response = await fetch('https://njs-01.optimuslab.space/lnu-footfall/floor-zone/ack-leaks');
+      
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+      
       const data = await response.json();
 
       if (Array.isArray(data)) {
@@ -44,8 +107,27 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
           return leakDate >= startDate && leakDate <= endDate;
         });
 
+        // Enhance data with resume time and duration
+        const enhancedData = filteredByDate.map(item => {
+          const resumeTime = item.back_to_normal_timestamp; // Resume time is directly available
+          
+          let duration = null;
+          if (resumeTime && item.leak_time) {
+            const leakStart = new Date(item.leak_time);
+            const leakEnd = new Date(resumeTime);
+            const durationMs = leakEnd - leakStart;
+            duration = formatDuration(durationMs);
+          }
+          
+          return {
+            ...item,
+            resume_time: resumeTime,
+            duration: duration
+          };
+        });
+
         // Sort data by leak time (most recent first)
-        const sortedData = [...filteredByDate].sort((a, b) => 
+        const sortedData = [...enhancedData].sort((a, b) => 
           new Date(b.leak_time) - new Date(a.leak_time)
         );
         
@@ -85,9 +167,10 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
     return `${hktDate.getUTCFullYear()}-${String(hktDate.getUTCMonth() + 1).padStart(2, '0')}-${String(hktDate.getUTCDate()).padStart(2, '0')} ${String(hktDate.getUTCHours()).padStart(2, '0')}:${String(hktDate.getUTCMinutes()).padStart(2, '0')}:${String(hktDate.getUTCSeconds()).padStart(2, '0')}`;
   };
 
-  // Get leak status badge color
+  // Get leak status badge color - FIXED to handle string values
   const getLeakStatusColor = (status) => {
-    return status === 1 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
+    const isLeak = status === 'leak' || status === 'leak detected';
+    return isLeak ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
   };
 
   // Get acknowledgment status
@@ -113,7 +196,7 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
 
   return (
     <div>
-      <div className="mb-10 rounded-xl border custom-shadow  border-gray-300overflow-hidden bg-white w-[98%] mt-10 mx-auto">
+      <div className="mb-10 rounded-xl border custom-shadow border-gray-300 overflow-hidden bg-white w-[98%] mt-10 mx-auto">
         {isLoading ? (
           <div className="text-center py-10">Loading Water Leak data...</div>
         ) : tableData.length > 0 ? (
@@ -123,8 +206,9 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
                 <tr className="bg-gray-100">
                   <th className="text-center px-4 py-4">Sensor ID</th>
                   <th className="text-center px-4 py-4">Leak Status</th>
-     
                   <th className="text-center px-4 py-4">Leak Time</th>
+                  <th className="text-center px-4 py-4">Resume Time</th>
+                  <th className="text-center px-4 py-4">Duration</th>
                   <th className="text-center px-4 py-4">Acknowledgment</th>
                 </tr>
               </thead>
@@ -141,11 +225,16 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
                     <td className="text-center px-4 py-3">{item.sensor}</td>
                     <td className="text-center px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs ${getLeakStatusColor(item.leakage_status)}`}>
-                        {item.leakage_status === 1 ? 'Leak Detected' : 'No Leak'}
+                        {(item.leakage_status === 'leak' || item.leakage_status === 'leak detected') ? 'Leak Detected' : 'No Leak'}
                       </span>
                     </td>
-        
                     <td className="text-center px-4 py-3">{convertToHKT(item.leak_time)}</td>
+                    <td className="text-center px-4 py-3">
+                      {item.resume_time ? convertToHKT(item.resume_time) : "N/A"}
+                    </td>
+                    <td className="text-center px-4 py-3">
+                      {item.duration || "N/A"}
+                    </td>
                     <td className="text-center px-4 py-3">
                       {getAckStatus(item)}
                     </td>
@@ -183,8 +272,6 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
           </div>
         )}
       </div>
-      
-     
     </div>
   );
 });

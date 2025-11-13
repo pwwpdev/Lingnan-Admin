@@ -17,6 +17,8 @@ import EditSpaces from "./components/EditSpaces";
 import Historical from "./components/Historical"
 import EditCallNumber from "./EditCallNumber";
 import DeskLogic from "./components/EditDeskLogic";
+import EditFacilities from "./components/editFacilities";
+import EditKioskHighlight from "./components/editHighlights";
 
 // Authentication check function
 const isAuthenticated = () => {
@@ -77,6 +79,15 @@ const App = () => {
         />
 
         <Route
+          path="/highlights"
+          element={
+            <ProtectedRoute>
+              <EditKioskHighlight />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/desk-logic"
           element={
             <ProtectedRoute>
@@ -93,6 +104,15 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/editfacilities"
+          element={
+            <ProtectedRoute>
+              <EditFacilities />
+            </ProtectedRoute>
+          }
+        />  
 
 <Route
           path="/callnumber"

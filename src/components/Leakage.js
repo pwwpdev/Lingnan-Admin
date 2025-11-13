@@ -3,6 +3,7 @@ import { Droplet, Thermometer, Volume2, VolumeX } from "lucide-react";
 import { useAuth0 } from "@auth0/auth0-react";
 
 import Sidebar from "./Sidebar";
+import Header from "./Header";
 
 const Leakage = () => {
   const [editingIndex, setEditingIndex] = useState(null);
@@ -218,6 +219,7 @@ const Leakage = () => {
       }
 
       const data = await response.json();
+      console.log("Current leak data after fetch:", data);
 
       const mappedLeaks = Array.isArray(data)
   ? data.map((leak) => {
@@ -258,6 +260,10 @@ const Leakage = () => {
           body: JSON.stringify(userInfo),
         }
       );
+
+      console.log("ACK Response status:", response.status); 
+      const responseData = await response.text();
+      console.log("ACK Response data:", responseData); 
 
       if (!response.ok) {
         throw new Error(
@@ -407,29 +413,15 @@ const Leakage = () => {
       />
 
       {/* Header */}
-      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
-
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
       <div className="min-h-screen mt-12 sm:mt-12 lg:mt-24 bg-gray-100 p-8">
         <h1 className="md:text-2xl text-xl font-semibold text-gray-800 mb-6">
-          Leakages
+          Water Leakage
         </h1>
 
         {error && (
@@ -490,7 +482,7 @@ const Leakage = () => {
                           <tr className="bg-gray-200">
                             <th className="px-2 py-2">Sensor</th>
                             <th className="px-2 py-2">Location</th>
-                            <th className="px-1 py-2 text-xs">Leak Time</th>
+                            <th className="px-1 py-2">Leak Time</th>
                             <th className="px-2 py-2">Action</th>
                           </tr>
                         </thead>
@@ -598,7 +590,7 @@ const Leakage = () => {
                   .map((sensor) => (
                     <div
                       key={sensor.id}
-                      className={`rounded-xl border-2 p-5 bg-white shadow-lg  transition-all duration-200 ${getCardBorderColor(
+                      className={`rounded-xl border-2 p-5 bg-white shadow-md  transition-all duration-200 ${getCardBorderColor(
                         sensor.status
                       )}`}
                     >
@@ -610,7 +602,7 @@ const Leakage = () => {
                               sensor.status === "Leakage"
                                 ? "bg-red-100"
                                 : sensor.status === "Leakage Acknowledged"
-                                ? "bg-green-100"
+                                ? "bg-blue-100"
                                 : "bg-blue-100"
                             }`}
                           >
@@ -619,7 +611,7 @@ const Leakage = () => {
                                 sensor.status === "Leakage"
                                   ? "text-red-600"
                                   : sensor.status === "Leakage Acknowledged"
-                                  ? "text-green-600"
+                                  ? "text-blue-600"
                                   : "text-blue-600"
                               }`}
                             />
@@ -637,14 +629,18 @@ const Leakage = () => {
 
                       {/* Status Badge */}
                       <div
-                        className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold mb-4 border ${getStatusColor(
+                        className={`inline-flex items-center px-3 py-1.5 rounded-full ${
+                          sensor.status === "Leakage"
+                            ? "text-[16px] font-bold"
+                            : "text-sm font-semibold"
+                        }  mb-4 border ${getStatusColor(
                           sensor.status
                         )}`}
                       >
                         <div
                           className={`w-2 h-2 rounded-full mr-2 ${
                             sensor.status === "Leakage"
-                              ? "bg-red-500"
+                              ? "bg-red-500 animate-pulse"
                               : sensor.status === "Leakage Acknowledged"
                               ? "bg-green-500"
                               : "bg-green-500"

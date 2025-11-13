@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Sidebar from "./Sidebar";
+import Header from "./Header";
 import {
   LineChart,
   Line,
@@ -300,7 +301,7 @@ const IAQAnalytics = () => {
   // Determine available zones based on selected floor
   const floorZoneMapping = {
     "1F": ["Zone A", "Zone B", "Zone C"],
-    "2F": ["Zone A", "Zone B", "Zone C"],
+    "2F": ["Zone A", "Zone B", "Zone C", "2A Archive"],
     "3F": ["Zone A", "Zone B", "Zone C"],
     MF: ["Zone A", "Zone C"],
   };
@@ -370,9 +371,12 @@ const IAQAnalytics = () => {
       return { floor: "1F", zone: "Zone C" };
     }
     // 2F mappings
-    else if (["IAQ-P03", "IAQ-L11", "IAQ-L12"].includes(deviceId)) {
-      return { floor: "2F", zone: "Zone A" };
-    } else if (["IAQ-P04"].includes(deviceId)) {
+    // 2F mappings
+else if (["IAQ-L12"].includes(deviceId)) {
+  return { floor: "2F", zone: "Zone A" };
+} else if (["IAQ-P03", "IAQ-L11"].includes(deviceId)) {
+  return { floor: "2F", zone: "2A Archive" };
+}else if (["IAQ-P04"].includes(deviceId)) {
       return { floor: "2F", zone: "Zone B" };
     } else if (["IAQ-L13"].includes(deviceId)) {
       return { floor: "2F", zone: "Zone C" };
@@ -395,6 +399,142 @@ const IAQAnalytics = () => {
     // Default fallback if no mapping found
     return { floor: null, zone: null };
   };
+
+  // Export CSV function
+const exportToCSV = () => {
+  try {
+    // Prepare data for export
+    let csvData = [];
+    
+    if (reportType === "daily") {
+      // For daily reports, use hourly data
+      const combinedHourlyData = {};
+      
+      // Combine main sensor data
+      Object.values(hourlyDataPoints).forEach((deviceData) => {
+        deviceData.forEach((dataPoint) => {
+          const hour = dataPoint.displayTime;
+          if (!combinedHourlyData[hour]) {
+            combinedHourlyData[hour] = {
+              Time: hour,
+              CO2: dataPoint.co2,
+              Temperature: dataPoint.temp,
+              Humidity: dataPoint.humidity,
+              count: 1
+            };
+          } else {
+            combinedHourlyData[hour].CO2 += dataPoint.co2;
+            combinedHourlyData[hour].Temperature += dataPoint.temp;
+            combinedHourlyData[hour].Humidity += dataPoint.humidity;
+            combinedHourlyData[hour].count += 1;
+          }
+        });
+      });
+      
+      // Add P-sensor data if available
+      Object.values(extraSensorData).forEach((deviceData) => {
+        deviceData.forEach((dataPoint) => {
+          const hour = dataPoint.displayTime;
+          if (combinedHourlyData[hour]) {
+            combinedHourlyData[hour]['PM2.5'] = (combinedHourlyData[hour]['PM2.5'] || 0) + dataPoint.pm2_5;
+            combinedHourlyData[hour]['PM10'] = (combinedHourlyData[hour]['PM10'] || 0) + dataPoint.pm10;
+            combinedHourlyData[hour]['TVOC'] = (combinedHourlyData[hour]['TVOC'] || 0) + dataPoint.tvoc;
+          }
+        });
+      });
+      
+      // Calculate averages and prepare final data
+      csvData = Object.values(combinedHourlyData).map(hour => ({
+        Time: hour.Time,
+        'CO2 (ppm)': (hour.CO2 / hour.count).toFixed(2),
+        'Temperature (°C)': (hour.Temperature / hour.count).toFixed(2),
+        'Humidity (%)': (hour.Humidity / hour.count).toFixed(2),
+        'PM2.5 (µg/m³)': hour['PM2.5'] ? (hour['PM2.5'] / hour.count).toFixed(2) : 'N/A',
+        'PM10 (µg/m³)': hour['PM10'] ? (hour['PM10'] / hour.count).toFixed(2) : 'N/A',
+        'TVOC': hour['TVOC'] ? (hour['TVOC'] / hour.count).toFixed(2) : 'N/A'
+      }));
+      
+    } else {
+      // For other reports, use daily data
+      const combinedDailyData = {};
+      
+      // Combine main sensor data
+      Object.values(dailyDataPoints).forEach((deviceData) => {
+        deviceData.forEach((dataPoint) => {
+          const date = dataPoint.date;
+          if (!combinedDailyData[date]) {
+            combinedDailyData[date] = {
+              Date: date,
+              CO2: dataPoint.co2,
+              Temperature: dataPoint.temp,
+              Humidity: dataPoint.humidity,
+              count: 1
+            };
+          } else {
+            combinedDailyData[date].CO2 += dataPoint.co2;
+            combinedDailyData[date].Temperature += dataPoint.temp;
+            combinedDailyData[date].Humidity += dataPoint.humidity;
+            combinedDailyData[date].count += 1;
+          }
+        });
+      });
+      
+      // Add P-sensor data if available
+      Object.values(extraSensorData).forEach((deviceData) => {
+        deviceData.forEach((dataPoint) => {
+          const date = dataPoint.date;
+          if (combinedDailyData[date]) {
+            combinedDailyData[date]['PM2.5'] = (combinedDailyData[date]['PM2.5'] || 0) + dataPoint.pm2_5;
+            combinedDailyData[date]['PM10'] = (combinedDailyData[date]['PM10'] || 0) + dataPoint.pm10;
+            combinedDailyData[date]['TVOC'] = (combinedDailyData[date]['TVOC'] || 0) + dataPoint.tvoc;
+          }
+        });
+      });
+      
+      // Calculate averages and prepare final data
+      csvData = Object.values(combinedDailyData).map(day => ({
+        Date: day.Date,
+        'CO2 (ppm)': (day.CO2 / day.count).toFixed(2),
+        'Temperature (°C)': (day.Temperature / day.count).toFixed(2),
+        'Humidity (%)': (day.Humidity / day.count).toFixed(2),
+        'PM2.5 (µg/m³)': day['PM2.5'] ? (day['PM2.5'] / day.count).toFixed(2) : 'N/A',
+        'PM10 (µg/m³)': day['PM10'] ? (day['PM10'] / day.count).toFixed(2) : 'N/A',
+        'TVOC': day['TVOC'] ? (day['TVOC'] / day.count).toFixed(2) : 'N/A'
+      }));
+    }
+    
+    // Convert to CSV
+    if (csvData.length === 0) {
+      alert('No data available for export');
+      return;
+    }
+    
+    const headers = Object.keys(csvData[0]);
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => headers.map(header => row[header]).join(','))
+    ].join('\n');
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    const dateRange = getDateRange();
+    const filename = `IAQ_${selectedFloor}_${selectedZone}_${dateRange.fromDate}_to_${dateRange.toDate}.csv`;
+    link.download = filename;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+  } catch (error) {
+    console.error('Error exporting CSV:', error);
+    alert('Error exporting data. Please try again.');
+  }
+};
 
   // List of all sensor IDs
   const ALL_SENSORS = [
@@ -747,36 +887,38 @@ const IAQAnalytics = () => {
   };
 
   // Add this new function for background refresh
-const refreshIAQDataSilently = async () => {
+  const refreshIAQDataSilently = async () => {
     try {
       // Get date range
       const dateRange = getDateRange();
-      
+
       // Format dates for API request
       let startDateFormatted = `${dateRange.fromDate}T00:00:00.000000Z`;
       let endDateFormatted = `${dateRange.toDate}T23:59:59.999999Z`;
       let url;
-  
+
       // Use hourly API for daily reports, historical API for other reports
       if (reportType === "daily") {
-        url = 'https://lnuwaterleakack-dot-optimus-hk.df.r.appspot.com/lnu/hourly/iaq-1';
+        url =
+          "https://lnuwaterleakack-dot-optimus-hk.df.r.appspot.com/lnu/hourly/iaq-1";
       } else {
-        url = 'https://lnuwaterleakack-dot-optimus-hk.df.r.appspot.com/lnu/historical/iaq-1';
+        url =
+          "https://lnuwaterleakack-dot-optimus-hk.df.r.appspot.com/lnu/historical/iaq-1";
       }
-  
+
       const response = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           startDate: startDateFormatted,
-          endDate: endDateFormatted
-        })
+          endDate: endDateFormatted,
+        }),
       });
-  
+
       const data = await response.json();
-  
+
       if (Array.isArray(data)) {
         processIAQData(data);
         // Also fetch extra sensor data for all P sensors in this floor/zone
@@ -787,74 +929,78 @@ const refreshIAQDataSilently = async () => {
       // Don't set error state during silent refresh
     }
   };
-  
+
   // Add matching function for extra sensor data
   const refreshExtraSensorDataSilently = async () => {
     try {
       // Get date range
       const dateRange = getDateRange();
-      
+
       let startDateFormatted = `${dateRange.fromDate}T00:00:00.000000Z`;
       let endDateFormatted = `${dateRange.toDate}T23:59:59.999999Z`;
       let url;
-  
+
       // Use hourly API for daily reports, historical API for other reports
       if (reportType === "daily") {
-        url = 'https://lnuwaterleakack-dot-optimus-hk.df.r.appspot.com/lnu/hourly/iaq-2';
+        url =
+          "https://lnuwaterleakack-dot-optimus-hk.df.r.appspot.com/lnu/hourly/iaq-2";
       } else {
-        url = 'https://lnuwaterleakack-dot-optimus-hk.df.r.appspot.com/lnu/historical/iaq-2';
+        url =
+          "https://lnuwaterleakack-dot-optimus-hk.df.r.appspot.com/lnu/historical/iaq-2";
       }
-  
+
       const response = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           startDate: startDateFormatted,
-          endDate: endDateFormatted
-        })
+          endDate: endDateFormatted,
+        }),
       });
-  
+
       const data = await response.json();
-  
+
       if (Array.isArray(data)) {
         // Process the data as before, but only for the silent update
         // This will update the state without loading indicators
         // ... (rest of the processing code as in the fetchExtraSensorData function)
         // Reuse the same data processing logic as in fetchExtraSensorData
-        
-        const relevantData = data.filter(item => {
+
+        const relevantData = data.filter((item) => {
           const mapping = mapDeviceToFloorZone(item.device);
-          return mapping.floor === selectedFloor && 
-                 mapping.zone === selectedZone && 
-                 item.device.includes('IAQ-P');
+          return (
+            mapping.floor === selectedFloor &&
+            mapping.zone === selectedZone &&
+            item.device.includes("IAQ-P")
+          );
         });
-        
+
         if (relevantData.length > 0) {
           // Calculate averages for P sensor metrics
           let totalPM25 = 0;
           let totalPM10 = 0;
           let totalTVOC = 0;
           let count = 0;
-          
+
           // Process data points for charts
           const formattedData = {};
-          
-          relevantData.forEach(item => {
+
+          relevantData.forEach((item) => {
             const device = item.device;
-            
+
             // Add to averages
             totalPM25 += item.pm2_5;
             totalPM10 += item.pm10;
             totalTVOC += item.tvoc;
             count++;
-            
+
             // Initialize device array if it doesn't exist
             if (!formattedData[device]) {
               formattedData[device] = [];
             }
-            
+
             // Add data point
             if (reportType === "daily") {
               formattedData[device].push({
@@ -867,40 +1013,44 @@ const refreshIAQDataSilently = async () => {
                 temp: item.temp,
                 humidity: item.humudity,
                 utcHour: new Date(item.timestamp).getUTCHours(),
-                rawTimestamp: new Date(item.timestamp)
+                rawTimestamp: new Date(item.timestamp),
               });
             } else {
               formattedData[device].push({
-                day: item.timestamp.split('T')[0],
+                day: item.timestamp.split("T")[0],
                 date: formatDateDisplay(new Date(item.timestamp)),
                 pm2_5: item.pm2_5,
                 pm10: item.pm10,
                 tvoc: item.tvoc,
                 co2: item.co2,
                 temp: item.temp,
-                humidity: item.humudity
+                humidity: item.humudity,
               });
             }
           });
-          
+
           // Sort data points
-          Object.keys(formattedData).forEach(device => {
+          Object.keys(formattedData).forEach((device) => {
             if (reportType === "daily") {
-              formattedData[device].sort((a, b) => a.rawTimestamp - b.rawTimestamp);
+              formattedData[device].sort(
+                (a, b) => a.rawTimestamp - b.rawTimestamp
+              );
             } else {
-              formattedData[device].sort((a, b) => new Date(a.day) - new Date(b.day));
+              formattedData[device].sort(
+                (a, b) => new Date(a.day) - new Date(b.day)
+              );
             }
           });
-          
+
           // Update extra sensor data state
           setExtraSensorData(formattedData);
-          
+
           // Update average metrics with P sensor data
-          setAverageMetrics(prev => ({
+          setAverageMetrics((prev) => ({
             ...prev,
             pm2_5: count > 0 ? totalPM25 / count : 0,
             pm10: count > 0 ? totalPM10 / count : 0,
-            tvoc: count > 0 ? totalTVOC / count : 0
+            tvoc: count > 0 ? totalTVOC / count : 0,
           }));
         }
       }
@@ -918,10 +1068,10 @@ const refreshIAQDataSilently = async () => {
   useEffect(() => {
     // Set up interval for silent auto-refresh
     const intervalId = setInterval(() => {
-      console.log('Auto-refreshing data...'); 
+      console.log("Auto-refreshing data...");
       refreshIAQDataSilently(); // Use the silent refresh function
     }, REFRESH_INTERVAL);
-    
+
     // Clean up interval on component unmount
     return () => {
       clearInterval(intervalId);
@@ -1070,22 +1220,23 @@ const refreshIAQDataSilently = async () => {
 
   // Prepare data for P-sensor charts
   // Prepare data for P-sensor charts
-const preparePSensorChartData = () => {
+  const preparePSensorChartData = () => {
     if (reportType === "daily") {
       // Daily view - Process hourly data
       const hourlyMap = {};
-      
-      Object.values(extraSensorData).forEach(deviceData => {
-        deviceData.forEach(dataPoint => {
-          const displayHour = ((dataPoint.utcHour + 8) % 24).toString().padStart(2, '0') + ':00';
-          
+
+      Object.values(extraSensorData).forEach((deviceData) => {
+        deviceData.forEach((dataPoint) => {
+          const displayHour =
+            ((dataPoint.utcHour + 8) % 24).toString().padStart(2, "0") + ":00";
+
           if (!hourlyMap[displayHour]) {
             hourlyMap[displayHour] = {
               displayHour: displayHour,
               pm2_5: dataPoint.pm2_5,
               pm10: dataPoint.pm10,
               tvoc: dataPoint.tvoc,
-              count: 1
+              count: 1,
             };
           } else {
             hourlyMap[displayHour].pm2_5 += dataPoint.pm2_5;
@@ -1095,29 +1246,29 @@ const preparePSensorChartData = () => {
           }
         });
       });
-      
+
       // Calculate averages and convert to array
-      const extraData = Object.values(hourlyMap).map(hour => ({
+      const extraData = Object.values(hourlyMap).map((hour) => ({
         displayHour: hour.displayHour,
         pm2_5: hour.pm2_5 / hour.count,
         pm10: hour.pm10 / hour.count,
-        tvoc: hour.tvoc / hour.count
+        tvoc: hour.tvoc / hour.count,
       }));
-      
+
       // Sort by hour
       extraData.sort((a, b) => {
-        const hourA = parseInt(a.displayHour.split(':')[0]);
-        const hourB = parseInt(b.displayHour.split(':')[0]);
+        const hourA = parseInt(a.displayHour.split(":")[0]);
+        const hourB = parseInt(b.displayHour.split(":")[0]);
         return hourA - hourB;
       });
-      
+
       return extraData;
     } else {
       // Weekly/Monthly/Custom view - Process daily data
       const dailyMap = {};
-      
-      Object.values(extraSensorData).forEach(deviceData => {
-        deviceData.forEach(dataPoint => {
+
+      Object.values(extraSensorData).forEach((deviceData) => {
+        deviceData.forEach((dataPoint) => {
           if (!dailyMap[dataPoint.day]) {
             dailyMap[dataPoint.day] = {
               day: dataPoint.day,
@@ -1125,7 +1276,7 @@ const preparePSensorChartData = () => {
               pm2_5: dataPoint.pm2_5,
               pm10: dataPoint.pm10,
               tvoc: dataPoint.tvoc,
-              count: 1
+              count: 1,
             };
           } else {
             dailyMap[dataPoint.day].pm2_5 += dataPoint.pm2_5;
@@ -1135,19 +1286,19 @@ const preparePSensorChartData = () => {
           }
         });
       });
-      
+
       // Calculate averages and convert to array
-      const extraData = Object.values(dailyMap).map(dayData => ({
+      const extraData = Object.values(dailyMap).map((dayData) => ({
         date: dayData.date,
         day: dayData.day,
         pm2_5: dayData.pm2_5 / dayData.count,
         pm10: dayData.pm10 / dayData.count,
-        tvoc: dayData.tvoc / dayData.count
+        tvoc: dayData.tvoc / dayData.count,
       }));
-      
+
       // Sort by date
       extraData.sort((a, b) => new Date(a.day) - new Date(b.day));
-      
+
       return extraData;
     }
   };
@@ -1167,25 +1318,12 @@ const preparePSensorChartData = () => {
       />
 
       {/* Header */}
-      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
 
       {/* Main Content */}
       <main className="pt-2 pb-12">
@@ -1388,15 +1526,25 @@ const preparePSensorChartData = () => {
                 </div>
               </div>
 
-              {/* Apply Button */}
-              <div className="mt-4 md:mt-0">
-                <button
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-                  onClick={applyDateRange}
-                >
-                  Apply
-                </button>
-              </div>
+             
+<div className="mt-4 md:mt-0 flex space-x-3">
+  <button
+    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+    onClick={applyDateRange}
+  >
+    Apply
+  </button>
+  
+  {/* Export CSV Button - only show for custom */}
+  {reportType === "custom" && (
+    <button
+      className="px-4 py-2 rounded-md bg-transparent border-[2px] border-blue-500 text-blue-600 font-medium hover:bg-blue-600 hover:text-white"
+      onClick={exportToCSV}
+    >
+      Export CSV
+    </button>
+  )}
+</div>
             </div>
           </div>
 
@@ -1537,12 +1685,22 @@ const preparePSensorChartData = () => {
                         CO2 Levels (ppm)
                       </h3>
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={hourlyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} > 
+                        <LineChart
+                          data={hourlyData}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
                           <CartesianGrid
                             strokeDasharray="3 3"
                             vertical={false}
                           />
-                          <XAxis dataKey="displayHour"  interval={0}  tick={{ fontSize: 13 }} tickFormatter={(value) => value.split(':')[0].replace(/^0+/, '')}  />
+                          <XAxis
+                            dataKey="displayHour"
+                            interval={0}
+                            tick={{ fontSize: 13 }}
+                            tickFormatter={(value) =>
+                              value.split(":")[0].replace(/^0+/, "")
+                            }
+                          />
                           <YAxis domain={["auto", "auto"]} />
                           <Tooltip content={<CustomTooltip />} />
                           <Legend />
@@ -1565,12 +1723,22 @@ const preparePSensorChartData = () => {
                         Temperature (°C)
                       </h3>
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={hourlyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} >
+                        <LineChart
+                          data={hourlyData}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
                           <CartesianGrid
                             strokeDasharray="3 3"
                             vertical={false}
                           />
-                          <XAxis dataKey="displayHour"  interval={0}  tick={{ fontSize: 13 }} tickFormatter={(value) => value.split(':')[0].replace(/^0+/, '')}  />
+                          <XAxis
+                            dataKey="displayHour"
+                            interval={0}
+                            tick={{ fontSize: 13 }}
+                            tickFormatter={(value) =>
+                              value.split(":")[0].replace(/^0+/, "")
+                            }
+                          />
                           <YAxis domain={["auto", "auto"]} />
                           <Tooltip content={<CustomTooltip />} />
                           <Legend />
@@ -1593,12 +1761,22 @@ const preparePSensorChartData = () => {
                         Humidity (%)
                       </h3>
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={hourlyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} >
+                        <LineChart
+                          data={hourlyData}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
                           <CartesianGrid
                             strokeDasharray="3 3"
                             vertical={false}
                           />
-                          <XAxis dataKey="displayHour"  interval={0}  tick={{ fontSize: 13 }} tickFormatter={(value) => value.split(':')[0].replace(/^0+/, '')}  />
+                          <XAxis
+                            dataKey="displayHour"
+                            interval={0}
+                            tick={{ fontSize: 13 }}
+                            tickFormatter={(value) =>
+                              value.split(":")[0].replace(/^0+/, "")
+                            }
+                          />
                           <YAxis domain={["auto", "auto"]} />
                           <Tooltip content={<CustomTooltip />} />
                           <Legend />
@@ -1629,12 +1807,28 @@ const preparePSensorChartData = () => {
                         CO2 Levels (ppm)
                       </h3>
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={dailyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} >
+                        <LineChart
+                          data={dailyData}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
                           <CartesianGrid
                             strokeDasharray="3 3"
                             vertical={false}
                           />
-                          <XAxis dataKey="date"  interval={0}  tick={{ fontSize: 13 }} tickFormatter={(value) => value.split(':')[0].replace(/^0+/, '')} />
+                          <XAxis
+                            dataKey="date"
+                            interval={
+                              reportType === "monthly"
+                                ? 4
+                                : reportType === "custom"
+                                ? Math.floor(dailyData.length / 10)
+                                : 0
+                            }
+                            tick={{ fontSize: 13 }}
+                            tickFormatter={(value) =>
+                              value.split(":")[0].replace(/^0+/, "")
+                            }
+                          />{" "}
                           <YAxis domain={["auto", "auto"]} />
                           <Tooltip content={<CustomTooltip />} />
                           <Legend />
@@ -1657,12 +1851,28 @@ const preparePSensorChartData = () => {
                         Temperature (°C)
                       </h3>
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={dailyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} >
+                        <LineChart
+                          data={dailyData}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
                           <CartesianGrid
                             strokeDasharray="3 3"
                             vertical={false}
                           />
-                          <XAxis dataKey="date"  interval={0}  tick={{ fontSize: 13 }} tickFormatter={(value) => value.split(':')[0].replace(/^0+/, '')} />
+                          <XAxis
+                            dataKey="date"
+                            interval={
+                              reportType === "monthly"
+                                ? 4
+                                : reportType === "custom"
+                                ? Math.floor(dailyData.length / 10)
+                                : 0
+                            }
+                            tick={{ fontSize: 13 }}
+                            tickFormatter={(value) =>
+                              value.split(":")[0].replace(/^0+/, "")
+                            }
+                          />{" "}
                           <YAxis domain={["auto", "auto"]} />
                           <Tooltip content={<CustomTooltip />} />
                           <Legend />
@@ -1685,12 +1895,28 @@ const preparePSensorChartData = () => {
                         Humidity (%)
                       </h3>
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={dailyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} >
+                        <LineChart
+                          data={dailyData}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
                           <CartesianGrid
                             strokeDasharray="3 3"
                             vertical={false}
                           />
-                          <XAxis dataKey="date"  interval={0}  tick={{ fontSize: 13 }} tickFormatter={(value) => value.split(':')[0].replace(/^0+/, '')} />
+                          <XAxis
+                            dataKey="date"
+                            interval={
+                              reportType === "monthly"
+                                ? 4
+                                : reportType === "custom"
+                                ? Math.floor(dailyData.length / 10)
+                                : 0
+                            }
+                            tick={{ fontSize: 13 }}
+                            tickFormatter={(value) =>
+                              value.split(":")[0].replace(/^0+/, "")
+                            }
+                          />{" "}
                           <YAxis domain={["auto", "auto"]} />
                           <Tooltip content={<CustomTooltip />} />
                           <Legend />
@@ -1723,7 +1949,10 @@ const preparePSensorChartData = () => {
                         PM2.5 (µg/m³)
                       </h3>
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={pSensorData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} >
+                        <LineChart
+                          data={pSensorData}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
                           <CartesianGrid
                             strokeDasharray="3 3"
                             vertical={false}
@@ -1731,7 +1960,20 @@ const preparePSensorChartData = () => {
                           <XAxis
                             dataKey={
                               reportType === "daily" ? "displayHour" : "date"
-                            } interval={0}  tick={{ fontSize: 13 }} tickFormatter={(value) => value.split(':')[0].replace(/^0+/, '')}
+                            }
+                            interval={
+                              reportType === "daily"
+                                ? 0
+                                : reportType === "monthly"
+                                ? 4
+                                : reportType === "custom"
+                                ? Math.floor(pSensorData.length / 10)
+                                : 0
+                            }
+                            tick={{ fontSize: 13 }}
+                            tickFormatter={(value) =>
+                              value.split(":")[0].replace(/^0+/, "")
+                            }
                           />
                           <YAxis domain={["auto", "auto"]} />
                           <Tooltip content={<CustomTooltip />} />
@@ -1755,7 +1997,10 @@ const preparePSensorChartData = () => {
                         PM10 (µg/m³)
                       </h3>
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={pSensorData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} >
+                        <LineChart
+                          data={pSensorData}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
                           <CartesianGrid
                             strokeDasharray="3 3"
                             vertical={false}
@@ -1763,7 +2008,20 @@ const preparePSensorChartData = () => {
                           <XAxis
                             dataKey={
                               reportType === "daily" ? "displayHour" : "date"
-                            } interval={0}  tick={{ fontSize: 13 }} tickFormatter={(value) => value.split(':')[0].replace(/^0+/, '')}
+                            }
+                            interval={
+                              reportType === "daily"
+                                ? 0
+                                : reportType === "monthly"
+                                ? 4
+                                : reportType === "custom"
+                                ? Math.floor(pSensorData.length / 10)
+                                : 0
+                            }
+                            tick={{ fontSize: 13 }}
+                            tickFormatter={(value) =>
+                              value.split(":")[0].replace(/^0+/, "")
+                            }
                           />
                           <YAxis domain={["auto", "auto"]} />
                           <Tooltip content={<CustomTooltip />} />
@@ -1785,7 +2043,10 @@ const preparePSensorChartData = () => {
                     <div>
                       <h3 className="text-base font-medium mb-2">TVOC</h3>
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={pSensorData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} >
+                        <LineChart
+                          data={pSensorData}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
                           <CartesianGrid
                             strokeDasharray="3 3"
                             vertical={false}
@@ -1793,7 +2054,20 @@ const preparePSensorChartData = () => {
                           <XAxis
                             dataKey={
                               reportType === "daily" ? "displayHour" : "date"
-                            } interval={0}  tick={{ fontSize: 13 }} tickFormatter={(value) => value.split(':')[0].replace(/^0+/, '')}
+                            }
+                            interval={
+                              reportType === "daily"
+                                ? 0
+                                : reportType === "monthly"
+                                ? 4
+                                : reportType === "custom"
+                                ? Math.floor(pSensorData.length / 10)
+                                : 0 
+                            }
+                            tick={{ fontSize: 13 }}
+                            tickFormatter={(value) =>
+                              value.split(":")[0].replace(/^0+/, "")
+                            }
                           />
                           <YAxis domain={["auto", "auto"]} />
                           <Tooltip content={<CustomTooltip />} />

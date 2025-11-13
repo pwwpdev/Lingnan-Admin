@@ -5,6 +5,7 @@ import HourlyZoneOccupancy from "./HourlyZoneOccupancy";
 import LiveZone from "./LiveZone";
 import PeakZoneDaily from "./PeakZoneDaily";
 import AvgZoneDaily from "./AvgZoneDaily";
+import Header from "./Header";
 import {
   PieChart,
   Pie,
@@ -465,6 +466,99 @@ const ZoneAnalytics = () => {
     }
   };
 
+  // Export CSV function
+  const exportToCSV = () => {
+    try {
+      // Prepare data for export
+      let csvData = [];
+
+      if (reportType === "daily") {
+        // For daily reports, export zone-specific summary data
+        csvData = [
+          {
+            Zone: selectedZone,
+            Floor: selectedFloor,
+            "Peak Occupancy": Math.round(selectedZoneData.peakOccupancy || 0),
+            "Peak Date": selectedZoneData.peakDate
+              ? format(new Date(selectedZoneData.peakDate), "yyyy-MM-dd HH:mm")
+              : "N/A",
+            "Peak Floor": selectedZoneData.peakFloor || "N/A",
+            "Avg Occupancy (%)": Math.round(
+              selectedZoneData.avgOccupancyPercentage || 0
+            ),
+          },
+        ];
+      } else {
+        // For weekly/monthly/custom reports, export the trend data
+        csvData = barChartData.map((item) => ({
+          Date: item.date,
+          Zone: selectedZone,
+          Floor: selectedFloor,
+          "Average Occupancy (%)": Math.round(item.averageOccupancy || 0),
+          "Peak Occupancy": Math.round(item.peakOccupancy || 0),
+        }));
+
+        // Add summary statistics at the end
+        if (csvData.length > 0) {
+          const totalAverage =
+            barChartData.reduce(
+              (sum, item) => sum + (item.averageOccupancy || 0),
+              0
+            ) / barChartData.length;
+          const maxPeak = Math.max(
+            ...barChartData.map((item) => item.peakOccupancy || 0)
+          );
+
+          csvData.push({
+            Date: "",
+            Zone: "",
+            Floor: "",
+            "Average Occupancy (%)": "",
+            "Peak Occupancy": "",
+          });
+
+          csvData.push({
+            Date: "SUMMARY",
+            Zone: selectedZone,
+            Floor: selectedFloor,
+            "Average Occupancy (%)": Math.round(totalAverage),
+            "Peak Occupancy": Math.round(maxPeak),
+          });
+        }
+      }
+
+      // Convert to CSV
+      if (csvData.length === 0) {
+        alert("No data available for export");
+        return;
+      }
+
+      const headers = Object.keys(csvData[0]);
+      const csvContent = [
+        headers.join(","),
+        ...csvData.map((row) => headers.map((header) => row[header]).join(",")),
+      ].join("\n");
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+
+      const { startDate, endDate } = getDateRange();
+      const filename = `Zone_${selectedZone}_Floor_${selectedFloor}_Occupancy_${reportType}_${startDate}_to_${endDate}.csv`;
+      link.download = filename;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error exporting CSV:", error);
+      alert("Error exporting data. Please try again.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar
@@ -474,25 +568,12 @@ const ZoneAnalytics = () => {
       />
 
       {/* Header */}
-      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
 
       {/* Main Content */}
       <main className="pt-2 pb-12">
@@ -668,14 +749,24 @@ const ZoneAnalytics = () => {
                 </div>
               </div>
 
-              {/* Apply Button */}
-              <div className="mt-4 md:mt-0">
+              {/* Buttons Section */}
+              <div className="mt-4 md:mt-0 flex space-x-3">
                 <button
                   className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
                   onClick={fetchData}
                 >
                   Apply
                 </button>
+
+                {/* Export CSV Button - only show for custom */}
+                {reportType === "custom" && (
+                  <button
+                    className="px-4 py-2 rounded-md bg-transparent border-[2px] border-blue-500 text-blue-600 font-medium hover:bg-blue-600 hover:text-white"
+                    onClick={exportToCSV}
+                  >
+                    Export CSV
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import Header from './Header';
 
 const Editor = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -50,23 +51,12 @@ const Editor = () => {
       />
 
       {/* Header */}
-      <header className='bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between'>
-        <div className='flex items-center h-full'>
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${isSidebarOpen ? 'hidden' : ''}`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className='h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto'
-        />
-      </header>
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
 
       {/* Editor Selection */}
       
@@ -84,10 +74,11 @@ const Editor = () => {
                 onChange={(e) => setSelectedEditor(e.target.value)}
                 className="px-4 py-2 border rounded-md"
               >
-                <option value="editor1">Main Floor</option>
-                <option value="editor2">First Floor</option>
-                <option value="editor3">Second Floor</option>
-                <option value="editor4">Third Floor</option>
+               
+                <option value="editor2">1/F</option>
+                <option value="editor1">M/F</option>
+                <option value="editor3">2/F</option>
+                <option value="editor4">3/F</option>
               </select>
             </div>
           </div>

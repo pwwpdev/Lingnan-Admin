@@ -8,6 +8,7 @@ import {
   DoorOpen,
   SquarePen,
   Droplets,
+  Images,
 } from "lucide-react";
 import { CpuIcon, MapPinCheck, WindIcon, ChartSpline } from "lucide-react";
 
@@ -175,7 +176,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
         alwaysOpen: true,
         children: [
           {
-            name: "3D Floor Maps",
+            name: "Floor Plan Dashboard",
             path: "/dashboard",
             icon: (
               <svg
@@ -195,11 +196,11 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
             ),
           },
           {
-            name: "Door Sensor Status",
+            name: "Emergency Door Status​",
             path: "/security-view",
             icon: <DoorOpen size={21} />,
           },
-          { name: "Air Quality", path: "/iaq", icon: <WindIcon size={21} /> },
+          { name: "Environmental Wellness​", path: "/iaq", icon: <WindIcon size={21} /> },
           { name: "Water Leakage", path: "/leakage", icon: <Droplets size={20} /> },
         ],
       },
@@ -249,9 +250,15 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
           },
           {
             name: "Edit Facilities",
-            path: "/facility",
+            path: "/editfacilities",
             icon: <MapPinCheck size={21} />,
           },
+          {
+            name: "Edit Kiosk Highlights",
+            path: "/highlights",
+            icon: <Images size={21} />,
+          },
+
           {
             name: "Edit Floor Plans",
             path: "/editor",

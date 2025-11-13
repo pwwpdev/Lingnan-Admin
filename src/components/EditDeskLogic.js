@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { useNavigate } from 'react-router-dom';
-import { Timer, UserMinus, UserX, BarChart3 } from 'lucide-react';
+import { Timer, UserMinus, UserX, BarChart3, AlertCircle } from 'lucide-react';
 import Sidebar from './Sidebar';
+import Header from './Header';
 
 const DeskLogic = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -11,15 +12,55 @@ const DeskLogic = () => {
   const navigate = useNavigate();
   const { logout } = useAuth0();
 
-  // Timing settings state
+  // Timing settings state (in minutes for frontend)
   const [timingSettings, setTimingSettings] = useState({
-    sensorContinuousTime: 1,
-    occupyToAway: 10,
-    awayToVacant: 10
+    timeToOccupied: 1,    // 60000ms
+    timeToVacant: 1,      // 60000ms
+    timeToAway: 9,        // 540000ms
+    timeToUnoccupied: 10  // 600000ms
   });
 
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Convert minutes to milliseconds for API
+  const convertToMs = (minutes) => minutes * 60 * 1000;
+
+  // Convert milliseconds to minutes for frontend
+  const convertToMinutes = (milliseconds) => Math.round(milliseconds / (60 * 1000));
+
+  // Fetch current settings from API
+  const fetchSettings = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('https://optimusc.flowfuse.cloud/api/occupancy-config');
+      if (!response.ok) {
+        throw new Error('Failed to fetch settings');
+      }
+      const data = await response.json();
+      
+      // Convert from milliseconds to minutes for frontend
+      setTimingSettings({
+        timeToOccupied: convertToMinutes(data.timeToOccupied),
+        timeToVacant: convertToMinutes(data.timeToVacant),
+        timeToAway: convertToMinutes(data.timeToAway),
+        timeToUnoccupied: convertToMinutes(data.timeToUnoccupied)
+      });
+      setHasChanges(false);
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+      setError('Failed to load settings. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -33,7 +74,7 @@ const DeskLogic = () => {
 
   const handleNavigate = (path) => {
     navigate(path);
-    setIsSidebarOpen(false); // close sidebar after navigating
+    setIsSidebarOpen(false);
   };
 
   const handleInputChange = (field, value) => {
@@ -49,13 +90,33 @@ const DeskLogic = () => {
 
   const handleSave = async () => {
     setIsSaving(true);
+    setError(null);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Convert all values to milliseconds for API
+      const apiData = {
+        timeToOccupied: convertToMs(timingSettings.timeToOccupied),
+        timeToVacant: convertToMs(timingSettings.timeToVacant),
+        timeToAway: convertToMs(timingSettings.timeToAway),
+        timeToUnoccupied: convertToMs(timingSettings.timeToUnoccupied)
+      };
+
+      const response = await fetch('https://optimusc.flowfuse.cloud/api/occupancy-config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(apiData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save settings');
+      }
+
       setHasChanges(false);
       // You can add success notification here
     } catch (error) {
-      // Handle error
+      console.error('Error saving settings:', error);
+      setError('Failed to save settings. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -63,42 +124,63 @@ const DeskLogic = () => {
 
   const handleReset = () => {
     setTimingSettings({
-      sensorContinuousTime: 1,
-      occupyToAway: 10,
-      awayToVacant: 10
+      timeToOccupied: 1,
+      timeToVacant: 1,
+      timeToAway: 9,
+      timeToUnoccupied: 10
     });
-    setHasChanges(false);
+    setHasChanges(true); // Mark as changed so user can save the reset values
   };
 
   const settingsConfig = [
     {
-      id: 'sensorContinuousTime',
-      title: 'Sensor Occupy/Vacant Continuous Time',
-      description: 'Duration for continuous sensor detection before status change',
-      value: timingSettings.sensorContinuousTime,
+      id: 'timeToOccupied',
+      title: 'Time to Occupy',
+      description: '(Green to Red)',
+      value: timingSettings.timeToOccupied,
       unit: 'minutes',
       icon: Timer,
-      color: 'bg-blue-50 border-blue-200'
+      color: 'bg-white border-gray-200'
     },
     {
-      id: 'occupyToAway',
-      title: 'Occupy to Away',
-      description: 'Time before occupied desk status changes to away',
-      value: timingSettings.occupyToAway,
+      id: 'timeToVacant',
+      title: 'Time to Countdown',
+      description: 'Stay Red, Only Text Change in Map',
+      value: timingSettings.timeToVacant,
       unit: 'minutes',
-      icon: Timer,
-      color: 'bg-orange-50 border-orange-200'
+      icon: Timer, 
+      color: 'bg-white border-gray-200'
     },
     {
-      id: 'awayToVacant',
-      title: 'Away to Vacant',
-      description: 'Time before away status changes to vacant',
-      value: timingSettings.awayToVacant,
+      id: 'timeToAway',
+      title: 'Time to Away',
+      description: 'Red to Yellow',
+      value: timingSettings.timeToAway,
       unit: 'minutes',
       icon: Timer,
-      color: 'bg-green-50 border-green-200'
+      color: 'bg-white border-gray-200'
+    },
+    {
+      id: 'timeToUnoccupied',
+      title: 'Time to Unoccupied',
+      description: 'Yellow to Green',
+      value: timingSettings.timeToUnoccupied,
+      unit: 'minutes',
+      icon: Timer,
+      color: 'bg-white border-gray-200'
     }
   ];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-gray-600">Loading settings...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -110,23 +192,12 @@ const DeskLogic = () => {
       />
 
       {/* Header */}
-      <header className='bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between'>
-        <div className='flex items-center h-full'>
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${isSidebarOpen ? 'hidden' : ''}`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className='h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto'
-        />
-      </header>
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
 
       {/* Main Content */}
       <main className="pt-20 xl:pt-[120px] px-8 pb-8">
@@ -136,6 +207,20 @@ const DeskLogic = () => {
             <h1 className="text-3xl font-semibold text-gray-900 mb-2">Edit Desk Logic</h1>
             <p className="text-gray-600">Configure timing settings for desk occupancy detection</p>
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              <span className="text-red-700">{error}</span>
+              <button 
+                onClick={fetchSettings}
+                className="ml-auto px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
           {/* Settings Cards */}
           <div className="grid gap-6 mb-8">
@@ -188,18 +273,22 @@ const DeskLogic = () => {
               <BarChart3 className="w-5 h-5 text-gray-700" />
               Current Configuration Summary
             </h3>
-            <div className="grid md:grid-cols-3 gap-4">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">{timingSettings.sensorContinuousTime}m</div>
-                <div className="text-sm text-gray-600">Sensor Detection</div>
+                <div className="text-2xl font-bold text-gray-800">{timingSettings.timeToOccupied}m</div>
+                <div className="text-sm text-gray-600">Time to Occupied</div>
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-2xl font-bold text-orange-600">{timingSettings.occupyToAway}m</div>
-                <div className="text-sm text-gray-600">Occupy → Away</div>
+                <div className="text-2xl font-bold text-gray-800">{timingSettings.timeToVacant}m</div>
+                <div className="text-sm text-gray-600">Time to Vacant</div>
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{timingSettings.awayToVacant}m</div>
-                <div className="text-sm text-gray-600">Away → Vacant</div>
+                <div className="text-2xl font-bold text-gray-800">{timingSettings.timeToAway}m</div>
+                <div className="text-sm text-gray-600">Time to Away</div>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl font-bold text-gray-800">{timingSettings.timeToUnoccupied}m</div>
+                <div className="text-sm text-gray-600">Time to Unoccupied</div>
               </div>
             </div>
           </div>
@@ -227,9 +316,9 @@ const DeskLogic = () => {
             
             <button
               onClick={handleReset}
-              disabled={!hasChanges || isSaving}
+              disabled={isSaving}
               className={`px-8 py-3 rounded-lg font-medium border-2 transition-all duration-200 ${
-                hasChanges && !isSaving
+                !isSaving
                   ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
                   : 'border-gray-200 text-gray-400 cursor-not-allowed'
               }`}
@@ -237,8 +326,6 @@ const DeskLogic = () => {
               Reset to Default
             </button>
           </div>
-
-         
         </div>
       </main>
     </div>

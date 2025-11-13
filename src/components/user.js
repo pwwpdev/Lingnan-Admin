@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth0 } from '@auth0/auth0-react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from "./Sidebar";
+import Header from "./Header";
 
 const UserManagement = () => {
     const { logout } = useAuth0();
@@ -690,25 +691,13 @@ const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
 
   
         {/* Header */}
-        <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-          <div className="flex items-center h-full">
-            <button
-              className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-                isSidebarOpen ? "hidden" : ""
-              }`}
-              onClick={() => setIsSidebarOpen(true)}
-            >
-              <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-              <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-              <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            </button>
-          </div>
-          <img
-            src="/library-logo-final_2024.png"
-            alt="LNU Logo"
-            className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-          />
-        </header>
+        <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
+      
     <div className="p-8 bg-[#f6f6f6] min-h-screen">
       {/* Header */}
       <header className="mt-[48px] sm:mt-[48px] md:mt-[54px] lg:mt-[72px] xl:mt-[90px] flex justify-between items-center">

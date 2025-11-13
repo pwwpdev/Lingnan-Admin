@@ -123,6 +123,9 @@ const useIAQData = () => {
       // Special handling for specific IAQ sensors mentioned in requirements
       let floor, zone;
       
+      // Archive sensors to exclude from 2/F calculations
+const archiveSensorIds = ["IAQ-L11", "IAQ-P03"];
+
       if (sensor.id === "IAQ-L07" || sensor.id === "IAQ-L08") {
         floor = "1F";
         zone = "Zone C";
@@ -152,6 +155,11 @@ const useIAQData = () => {
       }
       
       if (!floor || !zone) return;
+
+      // Skip archived sensors for 2/F
+      if (floor === "2F" && archiveSensorIds.includes(sensor.id)) {
+        return;
+      }
       
       if (!floorZoneGroups[floor]) {
         floorZoneGroups[floor] = {};

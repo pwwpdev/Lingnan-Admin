@@ -6,6 +6,7 @@ import HourlyData from "./HourlyFloorOccupancy";
 import LiveFloor from "./LiveFloor";
 import PeakFloorDaily from "./PeakFloorDaily";
 import AvgFloorDaily from "./AvgFloordaily";
+import Header from "./Header";
 import {
   PieChart,
   Pie,
@@ -218,12 +219,16 @@ const Analytics = () => {
       const mf = groupedByFloor["MF"] || { peakOccupancy: 0, zones: [] };
       const f2 = groupedByFloor["2F"] || { peakOccupancy: 0, zones: [] };
       const f3 = groupedByFloor["3F"] || { peakOccupancy: 0, zones: [] };
-      
+
       // Calculate 1F occupancy
-      const calculatedOccupancy = Math.max(0, 
-        mainEntrance.peakOccupancy - mf.peakOccupancy - f2.peakOccupancy - f3.peakOccupancy
+      const calculatedOccupancy = Math.max(
+        0,
+        mainEntrance.peakOccupancy -
+          mf.peakOccupancy -
+          f2.peakOccupancy -
+          f3.peakOccupancy
       );
-      
+
       // Create or update 1F entry
       if (!groupedByFloor["1F"]) {
         groupedByFloor["1F"] = {
@@ -301,10 +306,10 @@ const Analytics = () => {
         count: 0,
         floorTotals: {
           "Main-Entrance": { totalOccupancy: 0, totalPercentage: 0, count: 0 },
-          "MF": { totalOccupancy: 0, totalPercentage: 0, count: 0 },
+          MF: { totalOccupancy: 0, totalPercentage: 0, count: 0 },
           "2F": { totalOccupancy: 0, totalPercentage: 0, count: 0 },
           "3F": { totalOccupancy: 0, totalPercentage: 0, count: 0 },
-        }
+        },
       });
     }
 
@@ -334,8 +339,10 @@ const Analytics = () => {
 
         // Store data by floor for 1F calculation
         if (floor_id === "Main-Entrance" || zone_name === "Main-Entrance") {
-          dateEntry.floorTotals["Main-Entrance"].totalOccupancy += total_occupancy;
-          dateEntry.floorTotals["Main-Entrance"].totalPercentage += occupancy_percentage;
+          dateEntry.floorTotals["Main-Entrance"].totalOccupancy +=
+            total_occupancy;
+          dateEntry.floorTotals["Main-Entrance"].totalPercentage +=
+            occupancy_percentage;
           dateEntry.floorTotals["Main-Entrance"].count += 1;
         } else if (floor_id === "MF") {
           dateEntry.floorTotals["MF"].totalOccupancy += total_occupancy;
@@ -360,28 +367,40 @@ const Analytics = () => {
 
       if (selectedFloor === "1F") {
         // Calculate 1F as Main-Entrance minus other floors
-        const mainEntranceAvg = entry.floorTotals["Main-Entrance"].count > 0 
-          ? entry.floorTotals["Main-Entrance"].totalPercentage / entry.floorTotals["Main-Entrance"].count 
-          : 0;
-        const mfAvg = entry.floorTotals["MF"].count > 0 
-          ? entry.floorTotals["MF"].totalPercentage / entry.floorTotals["MF"].count 
-          : 0;
-        const f2Avg = entry.floorTotals["2F"].count > 0 
-          ? entry.floorTotals["2F"].totalPercentage / entry.floorTotals["2F"].count 
-          : 0;
-        const f3Avg = entry.floorTotals["3F"].count > 0 
-          ? entry.floorTotals["3F"].totalPercentage / entry.floorTotals["3F"].count 
-          : 0;
-        
+        const mainEntranceAvg =
+          entry.floorTotals["Main-Entrance"].count > 0
+            ? entry.floorTotals["Main-Entrance"].totalPercentage /
+              entry.floorTotals["Main-Entrance"].count
+            : 0;
+        const mfAvg =
+          entry.floorTotals["MF"].count > 0
+            ? entry.floorTotals["MF"].totalPercentage /
+              entry.floorTotals["MF"].count
+            : 0;
+        const f2Avg =
+          entry.floorTotals["2F"].count > 0
+            ? entry.floorTotals["2F"].totalPercentage /
+              entry.floorTotals["2F"].count
+            : 0;
+        const f3Avg =
+          entry.floorTotals["3F"].count > 0
+            ? entry.floorTotals["3F"].totalPercentage /
+              entry.floorTotals["3F"].count
+            : 0;
+
         averageOccupancy = Math.max(0, mainEntranceAvg - mfAvg - f2Avg - f3Avg);
-        
+
         // For peak, also calculate the difference
-        const mainEntrancePeak = entry.floorTotals["Main-Entrance"].totalOccupancy;
+        const mainEntrancePeak =
+          entry.floorTotals["Main-Entrance"].totalOccupancy;
         const mfPeak = entry.floorTotals["MF"].totalOccupancy;
         const f2Peak = entry.floorTotals["2F"].totalOccupancy;
         const f3Peak = entry.floorTotals["3F"].totalOccupancy;
-        
-        peakOccupancy = Math.max(0, mainEntrancePeak - mfPeak - f2Peak - f3Peak);
+
+        peakOccupancy = Math.max(
+          0,
+          mainEntrancePeak - mfPeak - f2Peak - f3Peak
+        );
       } else {
         // For other floors, use the specific floor data
         const floorData = entry.floorTotals[selectedFloor];
@@ -421,6 +440,92 @@ const Analytics = () => {
     }
   };
 
+  // Export CSV function
+  const exportToCSV = () => {
+    try {
+      // Prepare data for export
+      let csvData = [];
+
+      if (reportType === "daily") {
+        // For daily reports, export floor-specific summary data
+        csvData = [
+          {
+            Floor: floorNames[selectedFloor],
+            "Peak Occupancy": Math.round(selectedFloorData.peakOccupancy || 0),
+            "Peak Date": selectedFloorData.peakDate
+              ? format(new Date(selectedFloorData.peakDate), "yyyy-MM-dd HH:mm")
+              : "N/A",
+            "Peak Zone": selectedFloorData.peakZone || "N/A",
+          },
+        ];
+      } else {
+        // For weekly/monthly/custom reports, export the trend data
+        csvData = barChartData.map((item) => ({
+          Date: item.date,
+          Floor: floorNames[selectedFloor],
+          "Average Occupancy (%)": Math.round(item.averageOccupancy || 0),
+          "Peak Occupancy": Math.round(item.peakOccupancy || 0),
+        }));
+
+        // Add summary statistics at the end
+        if (csvData.length > 0) {
+          const totalAverage =
+            barChartData.reduce(
+              (sum, item) => sum + (item.averageOccupancy || 0),
+              0
+            ) / barChartData.length;
+          const maxPeak = Math.max(
+            ...barChartData.map((item) => item.peakOccupancy || 0)
+          );
+
+          csvData.push({
+            Date: "",
+            Floor: "",
+            "Average Occupancy (%)": "",
+            "Peak Occupancy": "",
+          });
+
+          csvData.push({
+            Date: "SUMMARY",
+            Floor: floorNames[selectedFloor],
+            "Average Occupancy (%)": Math.round(totalAverage),
+            "Peak Occupancy": Math.round(maxPeak),
+          });
+        }
+      }
+
+      // Convert to CSV
+      if (csvData.length === 0) {
+        alert("No data available for export");
+        return;
+      }
+
+      const headers = Object.keys(csvData[0]);
+      const csvContent = [
+        headers.join(","),
+        ...csvData.map((row) => headers.map((header) => row[header]).join(",")),
+      ].join("\n");
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+
+      const { startDate, endDate } = getDateRange();
+      const filename = `Floor_${selectedFloor}_Occupancy_${reportType}_${startDate}_to_${endDate}.csv`;
+      link.download = filename;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error exporting CSV:", error);
+      alert("Error exporting data. Please try again.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar
@@ -430,25 +535,12 @@ const Analytics = () => {
       />
 
       {/* Header */}
-      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
 
       {/* Main Content */}
       <main className="pt-2 pb-12">
@@ -624,14 +716,24 @@ const Analytics = () => {
                 </div>
               </div>
 
-              {/* Apply Button */}
-              <div className="mt-4 md:mt-0">
+              {/* Buttons Section */}
+              <div className="mt-4 md:mt-0 flex space-x-3">
                 <button
                   className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
                   onClick={fetchData}
                 >
                   Apply
                 </button>
+
+                {/* Export CSV Button - only show for custom */}
+                {reportType === "custom" && (
+                  <button
+                    className="px-4 py-2 rounded-md bg-transparent border-[2px] border-blue-500 text-blue-600 font-medium hover:bg-blue-600 hover:text-white"
+                    onClick={exportToCSV}
+                  >
+                    Export CSV
+                  </button>
+                )}
               </div>
             </div>
           </div>

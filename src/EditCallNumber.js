@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Sidebar from "./components/Sidebar";
 import { Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import Header from "./components/Header";
 
 const EditCallNumber = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -151,7 +152,7 @@ const EditCallNumber = () => {
     setLoading(true);
     try {
       let url =
-        "https://lnudevices-dot-optimus-hk.df.r.appspot.com/shelf-number";
+        "https://lnudevices-dot-optimus-lnu.df.r.appspot.com/shelf-number";
       let method = "POST";
 
       // Create body with all fields (database has these columns)
@@ -160,8 +161,8 @@ const EditCallNumber = () => {
         location_code: formData.location_code.trim(),
         start: formData.start_character.trim() + formData.start_number.trim(),
         end: formData.stop_character.trim() + formData.stop_number.trim(),
-        prefix: formData.prefix.trim() || null,
-        suffix: formData.suffix.trim() || null,
+        prefix: formData.prefix ? formData.prefix.trim() : "",
+        suffix: formData.suffix ? formData.suffix.trim() : "",  
         book_defn: formData.book_defn.trim() || null,
       };
 
@@ -213,7 +214,10 @@ const EditCallNumber = () => {
         book_defn: "",
       });
 
+setTimeout(async () => {
       await fetchCallNumbers();
+    }, 500);
+      
     } catch (err) {
       console.error("Save error:", err);
       setError(`Failed to save: ${err.message}`);
@@ -315,25 +319,12 @@ const EditCallNumber = () => {
       />
 
       {/* Header */}
-      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
 
       {/* Main Content */}
       <main className="pt-28 xl:pt-32 px-4 md:px-8 pb-10">
@@ -531,7 +522,7 @@ const EditCallNumber = () => {
             </div>
           ) : (
             <div className="bg-white border border-[#E2E2E4] custom-shadow rounded-lg overflow-hidden">
-              <div className="overflow-x-auto max-h-[520px] relative">
+              <div className="overflow-x-auto lg:max-h-[550px] 2xl:max-h-[730px] relative">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-100 sticky top-0 z-10">
                     <tr>

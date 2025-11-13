@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Sidebar from "./Sidebar";
 import axios from "axios";
+import Header from "./Header";
 
 const EditSpaces = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -396,25 +397,12 @@ const EditSpaces = () => {
       />
 
       {/* Header */}
-      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
 
       {/* Main Content */}
       <main className="pt-28 xl:pt-32 px-4 md:px-8 pb-10">
@@ -525,13 +513,13 @@ const EditSpaces = () => {
                                 scope="col"
                                 className="px-6 py-3 text-left text-sm font-medium text-gray-600"
                               >
-                                Absolute Capacity
+                                Admin View Capacity
                               </th>
                               <th
                                 scope="col"
                                 className="px-6 py-3 text-left text-sm font-medium text-gray-600"
                               >
-                                Functional Capacity
+                                Public View Capacity
                               </th>
                               <th
                                 scope="col"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Sidebar from "./Sidebar";
 import BuildingAnalytics from "./BuildingAnalytics";
@@ -9,6 +9,7 @@ import { FaWind, FaWater, FaDoorOpen } from "react-icons/fa";
 import WaterLeakHistorical from "./WaterLeakHistorical";
 import MDRHistorical from "./MDRHistorical";
 import axios from "axios";
+import Header from "./Header";
 
 const MainAnalytics = () => {
   const { logout } = useAuth0();
@@ -17,6 +18,8 @@ const MainAnalytics = () => {
   const [buildingName, setBuildingName] = useState("Lingnan Library"); // Default value
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const waterLeakRef = useRef();
+  const mdrRef = useRef();
 
   // Date state for the new tabs
   const [dateRange, setDateRange] = useState({
@@ -67,6 +70,14 @@ const MainAnalytics = () => {
     });
   };
 
+  const handleExportCSV = (componentType) => {
+    if (componentType === "waterleak" && waterLeakRef.current) {
+      waterLeakRef.current.exportToCSV();
+    } else if (componentType === "mdr" && mdrRef.current) {
+      mdrRef.current.exportToCSV();
+    }
+  };
+
   // Fetch building data on component mount
   useEffect(() => {
     const fetchBuildingData = async () => {
@@ -110,25 +121,12 @@ const MainAnalytics = () => {
       />
 
       {/* Header */}
-      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
 
       {/* Main Content */}
       <main className="pt-24 lg:pt-32 px-4 md:px-8 pb-12">
@@ -145,7 +143,7 @@ const MainAnalytics = () => {
             )}
           </div>
 
-          {/* Modern Tabs */}
+          {/* Tabs */}
           <div className="mb-8">
             <div className="flex flex-wrap border-b border-gray-200">
               <button
@@ -260,11 +258,21 @@ const MainAnalytics = () => {
                 }`}
                 onClick={() => handleTabChange("leakages")}
               >
-                <svg className={`w-4 h-4 mr-2 ${
+                <svg
+                  className={`w-4 h-4 mr-2 ${
                     activeTab === "leakages" ? "text-blue-600" : "text-gray-600"
                   }`}
-                  width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2C12 2 6 10 6 14a6 6 0 0012 0c0-4-6-12-6-12z" /></svg>
-          
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 2C12 2 6 10 6 14a6 6 0 0012 0c0-4-6-12-6-12z" />
+                </svg>
                 Leakages
                 {activeTab === "leakages" && (
                   <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600"></div>
@@ -321,6 +329,7 @@ const MainAnalytics = () => {
             )}
             {activeTab === "leakages" && (
               <div className="leakages-tab">
+                {/* Date Selection Controls */}
                 {/* Date Selection Controls */}
                 <div className="bg-white rounded-lg shadow-md p-4 mb-6">
                   <div className="flex flex-col md:flex-row md:items-end md:justify-between">
@@ -501,11 +510,24 @@ const MainAnalytics = () => {
                         )}
                       </div>
                     </div>
+
+                    {/* Export Button */}
+                    {reportType === "custom" && (
+                      <div className="mt-4 md:mt-0">
+                        <button
+                          className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                          onClick={() => handleExportCSV("waterleak")}
+                        >
+                          Export CSV
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Render WaterLeakHistorical component with date range */}
                 <WaterLeakHistorical
+                  ref={waterLeakRef}
                   dateRange={dateRange}
                   reportType={reportType}
                 />
@@ -695,11 +717,27 @@ const MainAnalytics = () => {
                         )}
                       </div>
                     </div>
+
+                    {/* Export Button  */}
+                    {reportType === "custom" && (
+                      <div className="mt-4 md:mt-0">
+                        <button
+                          className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                          onClick={() => handleExportCSV("mdr")}
+                        >
+                          Export CSV
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Render MDRHistorical component with date range */}
-                <MDRHistorical dateRange={dateRange} reportType={reportType} />
+                <MDRHistorical
+                  ref={mdrRef}
+                  dateRange={dateRange}
+                  reportType={reportType}
+                />
               </div>
             )}
           </div>

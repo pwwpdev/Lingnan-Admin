@@ -91,7 +91,7 @@ const WeatherAirQuality = ({ className = "" }) => {
     };
     
     fetchTemperature();
-    const intervalId = setInterval(fetchTemperature, 30 * 1000);
+    const intervalId = setInterval(fetchTemperature, 2 * 60 * 1000);
     
     return () => clearInterval(intervalId);
   }, []);
@@ -119,7 +119,7 @@ const WeatherAirQuality = ({ className = "" }) => {
     };
 
     fetchHumidity();
-    const intervalId = setInterval(fetchHumidity, 1800000);
+    const intervalId = setInterval(fetchHumidity, 4 * 60 * 1000);
 
     return () => clearInterval(intervalId);
   }, []);

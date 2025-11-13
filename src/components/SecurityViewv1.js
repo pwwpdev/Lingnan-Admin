@@ -229,7 +229,6 @@ const [currentUser, setCurrentUser] = useState({
   username: "Unknown User", 
   email: "unknown@email.com",
 });
-const [pendingAcknowledgments, setPendingAcknowledgments] = useState([]);
 
   // Update date and time
   useEffect(() => {
@@ -287,17 +286,6 @@ const [pendingAcknowledgments, setPendingAcknowledgments] = useState([]);
         if (!isMounted) return;
 
         const mdrData = await response.json();
-
-// Fetch acknowledgment data from unified API
-let ackData = [];
-try {
-  const ackResponse = await fetch("https://lnumdrsensorack-dot-optimus-lnu.df.r.appspot.com/mdr");
-  if (ackResponse.ok) {
-    ackData = await ackResponse.json();
-  }
-} catch (error) {
-  console.warn("Could not fetch acknowledgment data:", error);
-}
         const newActiveEmergencies = [];
 
         // Fetch battery levels as fallback
@@ -351,55 +339,23 @@ try {
                   // Set status to open
                   updatedData[floor][exitIndex].status = 1;
 
-                  
-
-               // Find acknowledgment data for this door
-const ackInfo = ackData.find(ack => 
-  ack.device === mdrId && ack.ack === 1
-);
-
-// NEW: Find the latest event for this MDR device to get the event ID
-const eventInfo = ackData.find(event => 
-  event.device === mdrId
-);
-
-let isCurrentlyAcknowledged = false;
-if (ackInfo && ackInfo.ack_time) {
-  const ackTime = new Date(ackInfo.ack_time).getTime();
-  const currentOpenTime = new Date(sensorData.timestamp).getTime();
-  // Only consider it acknowledged if ack happened AFTER this opening
-  isCurrentlyAcknowledged = ackTime > currentOpenTime;
-}
-
-// Add to active emergencies list with acknowledgment info
-newActiveEmergencies.push({
-  door: exitId,
-  floor: floor,
-  mdrId: mdrId,
-  apiId: eventInfo?.id || null,  // ADD THIS - Store the event ID for ALL doors
-  lastUpdated: sensorData.timestamp
-    ? new Date(sensorData.timestamp).toLocaleString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      })
-    : "Unknown",
-  battery: sensorData.battery,
-  // Add acknowledgment info from unified API
-  isAcknowledged: isCurrentlyAcknowledged,
-  acknowledgedBy: isCurrentlyAcknowledged ? (ackInfo?.userName || null) : null,
-  acknowledgedAt: isCurrentlyAcknowledged && ackInfo?.ack_time ? new Date(ackInfo.ack_time).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short", 
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }) : null,
-});
+                  // Add to active emergencies list
+                  newActiveEmergencies.push({
+                    door: exitId,
+                    floor: floor,
+                    mdrId: mdrId,
+                    lastUpdated: sensorData.timestamp
+                      ? new Date(sensorData.timestamp).toLocaleString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                        })
+                      : "Unknown",
+                    battery: sensorData.battery,
+                  });
                 } else {
                   // Door is closed
                   updatedData[floor][exitIndex].status = 0;
@@ -428,70 +384,12 @@ newActiveEmergencies.push({
           }
         });
 
-        // Process test doors and unmapped doors from mdr-events API that are currently open
-// Process test doors and unmapped doors from mdr-events API that are currently open
-ackData.forEach(eventData => {
-  if (eventData.magnet_status === "open") {
-    const mdrId = eventData.device;
-
-    if (mdrId === 'MDR-TST-ack' || mdrId.startsWith('MDR-TST') || mdrId === 'WS301-915M-01') {
-      return; // Skip this
-    }
-
-    const exitId = mdrToExitMapping[mdrId];
-    
-    
-    // If this door is not in our mapping OR not already processed above
-    if (!exitId || !newActiveEmergencies.find(emergency => emergency.mdrId === mdrId)) {
-      // Add test/unmapped doors to active emergencies
-      newActiveEmergencies.push({
-        door: exitId || mdrId, // Use exitId if mapped, otherwise use mdrId directly
-        floor: exitId ? findFloorForExit(exitId) : "TEST", // Show "TEST" for unmapped doors
-        mdrId: mdrId,
-        apiId: eventData.id, // ADD THIS - Store the API ID for acknowledgment
-        lastUpdated: eventData.timestamp
-          ? new Date(eventData.timestamp).toLocaleString("en-US", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            })
-          : "Unknown",
-        battery: eventData.battery,
-        // Add acknowledgment info from unified API
-        isAcknowledged: eventData.ack === 1,
-        acknowledgedBy: eventData.userName || null,
-        acknowledgedAt: eventData.ack_time ? new Date(eventData.ack_time).toLocaleString("en-US", {
-          year: "numeric",
-          month: "short", 
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        }) : null,
-      });
-    }
-  }
-});
-
         if (isMounted) {
           // Update data state
           setData(updatedData);
 
           // Update active emergencies
           setActiveEmergencies(newActiveEmergencies);
-
-          // Update acknowledged emergencies from API data
-const acknowledgedFromAPI = newActiveEmergencies
-.filter(emergency => emergency.isAcknowledged)
-.map(emergency => emergency.door);
-
-setAcknowledgedEmergencies(prev => {
-const combined = [...new Set([...prev, ...acknowledgedFromAPI])];
-return combined;
-}); 
 
           // Update last fetch time
           setLastUpdateTime(
@@ -600,56 +498,6 @@ return combined;
     };
   }, []);
 
-// Fetch pending acknowledgments from last 7 days
-useEffect(() => {
-  let isMounted = true;
-
-  const fetchPendingAck = async () => {
-    if (!isMounted) return;
-
-    try {
-      const response = await fetch("https://lnumdrsensorack-dot-optimus-lnu.df.r.appspot.com/mdr-events/last7days");
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-
-      if (!isMounted) return;
-
-      const data = await response.json();
-      const newEvents = data.events || [];
-      
-      // Merge with existing state to preserve local acknowledgments
-      setPendingAcknowledgments(prev => {
-        // Create a map of locally acknowledged events
-        const locallyAcknowledged = {};
-        prev.forEach(event => {
-          if (event.ack === 1) {
-            locallyAcknowledged[event.id] = event;
-          }
-        });
-        
-        // Merge: use locally acknowledged version if exists, otherwise use API data
-        return newEvents.map(newEvent => {
-          if (locallyAcknowledged[newEvent.id]) {
-            return locallyAcknowledged[newEvent.id]; // Keep the acknowledged state
-          }
-          return newEvent; // Use fresh data from API
-        });
-      });
-    } catch (error) {
-      console.error("Error fetching pending acknowledgments:", error);
-    }
-  };
-
-  fetchPendingAck();
-  const pollInterval = setInterval(fetchPendingAck, 5000);
-
-  return () => {
-    isMounted = false;
-    clearInterval(pollInterval);
-  };
-}, []);
-
   // Format the emergency message based on active emergencies
   const getEmergencyMessage = () => {
     if (activeEmergencies.length === 0) {
@@ -662,18 +510,15 @@ useEffect(() => {
     }
   };
 
-  const handleAcknowledge = async (eventId) => {
+  const handleAcknowledge = async (doorId) => {
     try {
       const userInfo = {
-        userName: currentUser.username,    // Fixed: use username for userName
-        userEmail: currentUser.email,      // Fixed: use email for userEmail
+        userName: currentUser.username,
+        userEmail: currentUser.email,
       };
   
-      console.log("Acknowledging event ID:", eventId);
-      console.log("Sending user info:", userInfo);
-  
       const response = await fetch(
-        `https://lnumdrsensorack-dot-optimus-lnu.df.r.appspot.com/acknowledge-mdr/${eventId}`,
+        `https://lnumdrsensorack-dot-optimus-lnu.df.r.appspot.com/lnu/mdr/acknowledge/${doorId}`,
         {
           method: "POST",
           headers: {
@@ -693,88 +538,17 @@ useEffect(() => {
         );
       }
   
-      // Find which door this event belongs to
-      const emergency = activeEmergencies.find(e => e.apiId === eventId);
-      
-      if (emergency) {
-        // Immediately update the local state
-        setActiveEmergencies(prev => 
-          prev.map(em => 
-            em.apiId === eventId 
-              ? {
-                  ...em,
-                  isAcknowledged: true,
-                  acknowledgedBy: currentUser.username,
-                  acknowledgedAt: new Date().toLocaleString("en-US", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: false,
-                  })
-                }
-              : em
-          )
-        );
-      }
+      // Add to acknowledged emergencies
+      setAcknowledgedEmergencies((prev) => {
+        if (!prev.includes(doorId)) {
+          return [...prev, doorId];
+        }
+        return prev;
+      });
   
     } catch (err) {
       console.error("Error acknowledging door:", err);
       alert(`Failed to acknowledge door: ${err.message}`);
-    }
-  };
-
-  const handlePendingAcknowledge = async (eventId) => {
-    try {
-      const userInfo = {
-        userName: currentUser.username,
-        userEmail: currentUser.email,
-        muteTime: ""
-      };
-  
-      console.log("=== PENDING ACK DEBUG ===");
-      console.log("Event ID:", eventId);
-      console.log("Sending user info:", JSON.stringify(userInfo, null, 2));
-  
-      const response = await fetch(
-        `https://lnumdrsensorack-dot-optimus-lnu.df.r.appspot.com/acknowledge-mdr/${eventId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(userInfo),
-        }
-      );
-  
-      const responseText = await response.text();
-      console.log("Response:", responseText);
-  
-      if (!response.ok) {
-        throw new Error(`Failed to acknowledge event: ${responseText}`);
-      }
-  
-      // Immediately update local state to mark as acknowledged
-      setPendingAcknowledgments(prev => 
-        prev.map(event => 
-          event.id === eventId 
-            ? {
-                ...event,
-                ack: 1,
-                userName: currentUser.username,
-                userEmail: currentUser.email,
-                ack_time: new Date().toISOString()
-              }
-            : event
-        )
-      );
-  
-      console.log("✅ Successfully acknowledged pending event");
-      
-    } catch (err) {
-      console.error("❌ Error acknowledging pending event:", err);
-      alert(`Failed to acknowledge: ${err.message}`);
     }
   };
 
@@ -864,9 +638,8 @@ useEffect(() => {
     <th className="px-3 py-2">Action</th>
   </tr>
 </thead>
-<tbody>
-{activeEmergencies
-  .map((emergency) => (
+                        <tbody>
+  {activeEmergencies.map((emergency) => (
     <tr
       key={emergency.door}
       className="border-b border-gray-300"
@@ -881,29 +654,17 @@ useEffect(() => {
         {emergency.lastUpdated}
       </td>
       <td className="px-3 py-2 text-center">
-        {emergency.isAcknowledged || acknowledgedEmergencies.includes(emergency.door) ? (
-          <div>
-            <span className="text-green-600 font-semibold text-xs block">
-              Acknowledged
-            </span>
-            {emergency.acknowledgedBy && (
-              <div className="text-xs text-gray-600 mt-1">
-                by {emergency.acknowledgedBy}
-              </div>
-            )}
-            {emergency.acknowledgedAt && (
-              <div className="text-xs text-gray-500 mt-1">
-                {emergency.acknowledgedAt}
-              </div>
-            )}
-          </div>
+        {acknowledgedEmergencies.includes(emergency.door) ? (
+          <span className="text-green-600 font-semibold text-xs">
+            Acknowledged
+          </span>
         ) : (
           <button
-          onClick={() => handleAcknowledge(emergency.apiId || emergency.door)}
-          className="bg-[#88D89F] hover:bg-green-400 text-white font-bold py-1 px-2 rounded text-xs"
-        >
-          ACK
-        </button>
+            onClick={() => handleAcknowledge(emergency.door)}
+            className="bg-[#88D89F] hover:bg-green-400 text-white font-bold py-1 px-2 rounded text-xs"
+          >
+            ACK
+          </button>
         )}
       </td>
     </tr>
@@ -949,98 +710,7 @@ useEffect(() => {
                     })}
                   </div>
                 </div>
-                
               </div>
-              <div className="px-8 py-6 w-full mb-8 ">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">
-                Pending Acknowledgments (Past 7 Days)
-              </h2>
-              
-              {pendingAcknowledgments.length > 0 ? (
-                <div className="w-full rounded-lg overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-200">
-                        <th className="px-3 py-2">MDR ID</th>
-                        <th className="px-3 py-2">Door ID</th>
-                        <th className="px-3 py-2">Floor</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2">Timestamp</th>
-                        <th className="px-3 py-2">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingAcknowledgments.map((event) => {
-                        const exitId = mdrToExitMapping[event.device];
-                        const floor = exitId ? findFloorForExit(exitId) : "Unknown";
-                        
-                        return (
-                          <tr key={event.id} className="border-b border-gray-300">
-                            <td className="px-3 py-2 text-center">{event.device}</td>
-                            <td className="px-3 py-2 text-center">{exitId || "N/A"}</td>
-                            <td className="px-3 py-2 text-center">{floor}</td>
-                            <td className="px-3 py-2 text-center">
-                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                event.magnet_status === "open" 
-                                  ? "bg-red-200 text-red-800" 
-                                  : "bg-gray-200 text-gray-800"
-                              }`}>
-                                {event.magnet_status}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              {new Date(event.timestamp).toLocaleString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                hour12: false,
-                              })}
-                            </td>
-                            <td className="px-3 py-2 text-center">
-  {event.ack === 1 ? (
-    <div>
-      <span className="text-green-600 font-semibold text-xs block">
-        Acknowledged
-      </span>
-      {event.userName && (
-        <div className="text-xs text-gray-600 mt-1">
-          by {event.userName}
-        </div>
-      )}
-      {event.ack_time && (
-        <div className="text-xs text-gray-500 mt-1">
-          {new Date(event.ack_time).toLocaleString("en-US", {
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          })}
-        </div>
-      )}
-    </div>
-  ) : (
-    <button
-      onClick={() => handlePendingAcknowledge(event.id)}
-      className="bg-[#88D89F] hover:bg-green-400 text-white font-bold py-1 px-2 rounded text-xs"
-    >
-      ACK
-    </button>
-  )}
-</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center text-green-600 py-4">
-                  <p>No pending acknowledgments for the past 7 days</p>
-                </div>
-              )}
-            </div>
             </div>
 
             {/* PIR Sensor Status Box */}
