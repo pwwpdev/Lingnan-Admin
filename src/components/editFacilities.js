@@ -33,7 +33,7 @@ const [loadingChildren, setLoadingChildren] = useState({}); // Track loading sta
 
 
   const API_BASE_URL =
-    "https://njs-01.optimuslab.space";
+  "https://facility-search-dot-optimus-lnu.df.r.appspot.com"; 
 
   const [facilitiesData, setFacilitiesData] = useState([]);
   const [entityOptions, setEntityOptions] = useState([]);
@@ -57,6 +57,12 @@ const [loadingChildren, setLoadingChildren] = useState({}); // Track loading sta
   l3_order: "",
   });
 
+
+
+// ADD THESE TWO NEW LINES for third levels
+const [loadedThirdLevels, setLoadedThirdLevels] = useState({}); // Track which second levels have loaded third levels
+const [loadingThirdLevels, setLoadingThirdLevels] = useState({}); // Track loading state per second level
+
   //  extract unique entity names for dropdown
   const extractEntityOptions = (facilities) => {
     const uniqueEntities = [
@@ -70,25 +76,28 @@ const [loadingChildren, setLoadingChildren] = useState({}); // Track loading sta
   };
 
   const fetchFacilities = async () => {
+    console.log("🔍 Fetching from:", `${API_BASE_URL}/api/library_facilities`);
     setLoading(true);
     setError(null);
   
     try {
-      // NOW ONLY FETCHES FIRST LEVELS
-      const response = await fetch(`${API_BASE_URL}/library_facilities/`);
+      const response = await fetch(`${API_BASE_URL}/api/library_facilities`);
+  
+      console.log("Response status:", response.status);
   
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
   
       const data = await response.json();
-  
-      // Sort first levels only
-      const sortedFacilities = data.library_facilities?.sort(
+      console.log("Raw API response:", data);
+      
+      const sortedFacilities = data.data?.sort(  
         (a, b) => (a.l1_order || 0) - (b.l1_order || 0)
       );
   
-      // Remove all the idLookupMap logic - not needed anymore for initial load
+      console.log("Sorted facilities:", sortedFacilities);
+  
       setFacilitiesData(sortedFacilities || []);
       setEntityOptions(extractEntityOptions(sortedFacilities || []));
     } catch (err) {
@@ -101,49 +110,97 @@ const [loadingChildren, setLoadingChildren] = useState({}); // Track loading sta
     }
   };
 
-  // NEW FUNCTION - Fetch second + third levels on demand
-const fetchChildren = async (firstLevelId) => {
-  // Don't fetch if already loaded
-  if (loadedChildren[firstLevelId]) {
-    return;
-  }
-
-  setLoadingChildren(prev => ({ ...prev, [firstLevelId]: true }));
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/library_facilities/children/${firstLevelId}`
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+  // Fetch second + third levels on demand
+  const fetchChildren = async (firstLevelId) => {
+    if (loadedChildren[firstLevelId]) {
+      return;
     }
+  
+    setLoadingChildren(prev => ({ ...prev, [firstLevelId]: true }));
+  
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/library_facilities/${firstLevelId}/second_levels`  // ADD /api/
+      );
+  
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+  
+      const data = await response.json();
+  
+      setFacilitiesData(prevData =>
+        prevData.map(firstLevel => {
+          if (firstLevel.id === firstLevelId) {
+            return {
+              ...firstLevel,
+              second_levels: data.second_levels || []
+            };
+          }
+          return firstLevel;
+        })
+      );
+  
+      setLoadedChildren(prev => ({ ...prev, [firstLevelId]: true }));
+    } catch (err) {
+      console.error("Error fetching children:", err);
+      setError(`Failed to fetch children: ${err.message}`);
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoadingChildren(prev => ({ ...prev, [firstLevelId]: false }));
+    }
+  };
 
-    const data = await response.json();
-
-    // Update the facilitiesData with the loaded children
-    setFacilitiesData(prevData =>
-      prevData.map(firstLevel => {
-        if (firstLevel.id === firstLevelId) {
-          return {
-            ...firstLevel,
-            second_levels: data.second_levels || []
-          };
-        }
-        return firstLevel;
-      })
-    );
-
-    // Mark as loaded
-    setLoadedChildren(prev => ({ ...prev, [firstLevelId]: true }));
-  } catch (err) {
-    console.error("Error fetching children:", err);
-    setError(`Failed to fetch children: ${err.message}`);
-    setTimeout(() => setError(null), 3000);
-  } finally {
-    setLoadingChildren(prev => ({ ...prev, [firstLevelId]: false }));
-  }
-};
+  // NEW FUNCTION - Fetch third levels on demand
+  const fetchThirdLevels = async (firstLevelId, secondLevelId) => {
+    const key = `${firstLevelId}-${secondLevelId}`;
+    
+    if (loadedThirdLevels[key]) {
+      return;
+    }
+  
+    setLoadingThirdLevels(prev => ({ ...prev, [key]: true }));
+  
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/library_facilities/${firstLevelId}/second_levels/${secondLevelId}/third_levels`  // ADD /api/
+      );
+  
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+  
+      const data = await response.json();
+  
+      setFacilitiesData(prevData =>
+        prevData.map(firstLevel => {
+          if (firstLevel.id === firstLevelId) {
+            return {
+              ...firstLevel,
+              second_levels: firstLevel.second_levels?.map(secondLevel => {
+                if (secondLevel.id === secondLevelId) {
+                  return {
+                    ...secondLevel,
+                    third_levels: data.third_levels || []
+                  };
+                }
+                return secondLevel;
+              })
+            };
+          }
+          return firstLevel;
+        })
+      );
+  
+      setLoadedThirdLevels(prev => ({ ...prev, [key]: true }));
+    } catch (err) {
+      console.error("Error fetching third levels:", err);
+      setError(`Failed to fetch third levels: ${err.message}`);
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoadingThirdLevels(prev => ({ ...prev, [key]: false }));
+    }
+  };
 
   // load data on mount
   useEffect(() => {
@@ -152,11 +209,11 @@ const fetchChildren = async (firstLevelId) => {
 
   useEffect(() => {
     if (searchTerm) {
-      autoExpandSearchResults(filteredData, searchTerm);
+      autoExpandSearchResults(facilitiesData, searchTerm);  // Change filteredData to facilitiesData
     } else {
       setExpandedItems({});
     }
-  }, [searchTerm]);
+  }, [searchTerm, facilitiesData]);  // Add facilitiesData to dependencies
 
   const handleEdit = (row) => {
     setEditingRow(row.id);
@@ -283,9 +340,9 @@ const fetchChildren = async (firstLevelId) => {
 
       let updateUrl;
       if (addingLevelTo.level === "second") {
-        updateUrl = `${API_BASE_URL}/library_facilities/second_level/${addingLevelTo.id}`;
+        updateUrl = `${API_BASE_URL}/api/library_facilities/second_level/${addingLevelTo.id}`;  
       } else if (addingLevelTo.level === "third") {
-        updateUrl = `${API_BASE_URL}/library_facilities/third_level/${addingLevelTo.id}/${addingLevelTo.secondId}`;
+        updateUrl = `${API_BASE_URL}/api/library_facilities/third_level/${addingLevelTo.id}/${addingLevelTo.secondId}`;  
       }
       console.log("Making UPDATE API call to:", updateUrl);
 
@@ -427,7 +484,7 @@ const fetchChildren = async (firstLevelId) => {
       }
   
       console.log("INSERT API call");
-      const response = await fetch(`${API_BASE_URL}/library_facilities/`, {
+      const response = await fetch(`${API_BASE_URL}/api/library_facilities/`, {  
         method: "POST",
         body: formDataToSend,
       });
@@ -501,11 +558,11 @@ const fetchChildren = async (firstLevelId) => {
       let deleteUrl;
 
       if (level === "first") {
-        deleteUrl = `${API_BASE_URL}/library_facilities/first_level/${data.id}`;
+        deleteUrl = `${API_BASE_URL}/api/library_facilities/first_level/${data.id}`;  
       } else if (level === "second") {
-        deleteUrl = `${API_BASE_URL}/library_facilities/second_level/${data.firstLevelDocId}/${data.id}`;
+        deleteUrl = `${API_BASE_URL}/api/library_facilities/second_level/${data.firstLevelDocId}/${data.id}`;  
       } else if (level === "third") {
-        deleteUrl = `${API_BASE_URL}/library_facilities/third_level/${data.firstLevelDocId}/${data.secondLevelId}/${data.id}`;
+        deleteUrl = `${API_BASE_URL}/api/library_facilities/third_level/${data.firstLevelDocId}/${data.secondLevelId}/${data.id}`;  
       }
 
       console.log("Making DELETE API call to:", deleteUrl);
@@ -635,7 +692,7 @@ const fetchChildren = async (firstLevelId) => {
   // use LOCAL state
 
   const TreeCard = React.memo(
-    ({ data, level, parentPath = "", fetchChildren, loadedChildren, loadingChildren }) => {  // ADD THESE PROPS
+    ({ data, level, parentPath = "", fetchChildren, loadedChildren, loadingChildren, fetchThirdLevels, loadedThirdLevels, loadingThirdLevels }) => {  // ADD fetchThirdLevels, loadedThirdLevels, loadingThirdLevels
       // LOCAL STATE - prevents re-renders from parent
       const [localFormData, setLocalFormData] = useState({
         entity_name: "",
@@ -720,38 +777,41 @@ const fetchChildren = async (firstLevelId) => {
         }));
       }, []);
 
-      // Check for valid children
      // Check for valid children - for first level, assume has children if no data loaded yet
 const hasValidChildren =
-level === "first"
-  ? !loadedChildren[data.id] || // Show expand button if not loaded yet
-    (data.second_levels?.length > 0 &&
-      data.second_levels.some(
-        (item) =>
-          (item.name && item.name !== "null") ||
-          (item.third_levels?.length > 0 &&
-            item.third_levels.some(
-              (thirdItem) => thirdItem.name && thirdItem.name !== "null"
-            ))
-      ))
-  : level === "second"
-  ? data.third_levels?.length > 0 &&
-    data.third_levels.some((item) => item.name && item.name !== "null")
-  : false;
+  level === "first"
+    ? !loadedChildren[data.id] || 
+      (data.second_levels?.length > 0 &&
+        data.second_levels.some(
+          (item) =>
+            (item.name && item.name !== "null") ||
+            (item.third_levels?.length > 0 &&
+              item.third_levels.some(
+                (thirdItem) => thirdItem.name && thirdItem.name !== "null"
+              ))
+        ))
+    : level === "second"
+    ? !loadedThirdLevels[`${data.firstLevelDocId}-${data.id}`] ||  // ADD THIS CHECK
+      (data.third_levels?.length > 0 &&
+        data.third_levels.some((item) => item.name && item.name !== "null"))
+    : false;
 
-  const toggleExpansion = useCallback(async () => {
-    const newExpandedState = !expandedItems[currentPath];
+    const toggleExpansion = useCallback(async () => {
+      const newExpandedState = !expandedItems[currentPath];
+      
+      setExpandedItems((prev) => ({
+        ...prev,
+        [currentPath]: newExpandedState,
+      }));
     
-    setExpandedItems((prev) => ({
-      ...prev,
-      [currentPath]: newExpandedState,
-    }));
-  
-    // NEW: If expanding a first level and children not loaded, fetch them
-    if (level === "first" && newExpandedState && !loadedChildren[data.id]) {
-      await fetchChildren(data.id);
-    }
-  }, [currentPath, level, data.id, loadedChildren, expandedItems, fetchChildren]);
+      // Fetch children when expanding
+      if (level === "first" && newExpandedState && !loadedChildren[data.id]) {
+        await fetchChildren(data.id);
+      } else if (level === "second" && newExpandedState && !loadedThirdLevels[`${data.firstLevelDocId}-${data.id}`]) {
+        // ADD THIS: Fetch third levels when expanding second level
+        await fetchThirdLevels(data.firstLevelDocId, data.id);
+      }
+    }, [currentPath, level, data.id, data.firstLevelDocId, loadedChildren, loadedThirdLevels, expandedItems, fetchChildren, fetchThirdLevels]);
 
       const handleEdit = useCallback(() => {
         setEditingItem({
@@ -853,13 +913,13 @@ level === "first"
           }
       
           let editUpdateUrl;
-          if (level === "first") {
-            editUpdateUrl = `${API_BASE_URL}/library_facilities/${data.id}`;
-          } else if (level === "second") {
-            editUpdateUrl = `${API_BASE_URL}/library_facilities/second_level/${data.firstLevelDocId}/${data.id}`;
-          } else if (level === "third") {
-            editUpdateUrl = `${API_BASE_URL}/library_facilities/third_level/${data.firstLevelDocId}/${data.secondLevelId}/${data.id}`;
-          }
+if (level === "first") {
+  editUpdateUrl = `${API_BASE_URL}/api/library_facilities/${data.id}`;  
+} else if (level === "second") {
+  editUpdateUrl = `${API_BASE_URL}/api/library_facilities/second_level/${data.firstLevelDocId}/${data.id}`;  
+} else if (level === "third") {
+  editUpdateUrl = `${API_BASE_URL}/api/library_facilities/third_level/${data.firstLevelDocId}/${data.secondLevelId}/${data.id}`;  
+}
       
           console.log("API URL:", editUpdateUrl);
       
@@ -962,11 +1022,10 @@ level === "first"
 
           let updateUrl;
           if (addingLevelType === "second") {
-            updateUrl = `${API_BASE_URL}/library_facilities/second_level/${addingLevelTo.id}`;
+            updateUrl = `${API_BASE_URL}/api/library_facilities/second_level/${addingLevelTo.id}`;  
           } else if (addingLevelType === "third") {
-            updateUrl = `${API_BASE_URL}/library_facilities/third_level/${addingLevelTo.id}/${addingLevelTo.secondId}`;
+            updateUrl = `${API_BASE_URL}/api/library_facilities/third_level/${addingLevelTo.id}/${addingLevelTo.secondId}`;  
           }
-
           const response = await fetch(updateUrl, {
             method: "POST",
             body: formDataToSend,
@@ -1382,7 +1441,7 @@ level === "first"
   !isLocalEditing &&
   !isLocalAddingLevel && (
     <div className="border-t px-4 pb-4 space-y-2">
-      {/* Show loading spinner while fetching children */}
+      {/* Show loading spinner while fetching second level children */}
       {level === "first" && loadingChildren[data.id] && (
         <div className="flex justify-center items-center py-4">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
@@ -1390,39 +1449,54 @@ level === "first"
         </div>
       )}
 
-      {/* Show children once loaded */}
+      {/* ADD THIS: Show loading spinner while fetching third level children */}
+      {level === "second" && loadingThirdLevels[`${data.firstLevelDocId}-${data.id}`] && (
+        <div className="flex justify-center items-center py-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+          <p className="ml-3 text-gray-600">Loading...</p>
+        </div>
+      )}
+
+      {/* Show second level children once loaded */}
       {level === "first" && !loadingChildren[data.id] &&
-  data.second_levels?.map((secondItem, index) => (
-    <TreeCard
-      key={`${currentPath}-second-${index}`}
-      data={{
-        ...secondItem,
-        firstLevelDocId: data.id,
-      }}
-      level="second"
-      parentPath={currentPath}
-      fetchChildren={fetchChildren}          // ADD THIS
-      loadedChildren={loadedChildren}        // ADD THIS
-      loadingChildren={loadingChildren}      // ADD THIS
-    />
-  ))}
+        data.second_levels?.map((secondItem, index) => (
+          <TreeCard
+            key={`${currentPath}-second-${index}`}
+            data={{
+              ...secondItem,
+              firstLevelDocId: data.id,
+            }}
+            level="second"
+            parentPath={currentPath}
+            fetchChildren={fetchChildren}
+            loadedChildren={loadedChildren}
+            loadingChildren={loadingChildren}
+            fetchThirdLevels={fetchThirdLevels}          // ADD THIS
+            loadedThirdLevels={loadedThirdLevels}        // ADD THIS
+            loadingThirdLevels={loadingThirdLevels}      // ADD THIS
+          />
+        ))}
       
-      {level === "second" &&
-  data.third_levels?.map((thirdItem, index) => (
-    <TreeCard
-      key={`${currentPath}-third-${index}`}
-      data={{
-        ...thirdItem,
-        firstLevelDocId: data.firstLevelDocId,
-        secondLevelId: data.id,
-      }}
-      level="third"
-      parentPath={currentPath}
-      fetchChildren={fetchChildren}          // ADD THIS
-      loadedChildren={loadedChildren}        // ADD THIS
-      loadingChildren={loadingChildren}      // ADD THIS
-    />
-  ))}
+      {/* Show third level children once loaded */}
+      {level === "second" && !loadingThirdLevels[`${data.firstLevelDocId}-${data.id}`] &&
+        data.third_levels?.map((thirdItem, index) => (
+          <TreeCard
+            key={`${currentPath}-third-${index}`}
+            data={{
+              ...thirdItem,
+              firstLevelDocId: data.firstLevelDocId,
+              secondLevelId: data.id,
+            }}
+            level="third"
+            parentPath={currentPath}
+            fetchChildren={fetchChildren}
+            loadedChildren={loadedChildren}
+            loadingChildren={loadingChildren}
+            fetchThirdLevels={fetchThirdLevels}          // ADD THIS
+            loadedThirdLevels={loadedThirdLevels}        // ADD THIS
+            loadingThirdLevels={loadingThirdLevels}      // ADD THIS
+          />
+        ))}
     </div>
   )}
         </div>
@@ -1433,14 +1507,17 @@ level === "first"
         prevProps.data === nextProps.data &&
         prevProps.level === nextProps.level &&
         prevProps.parentPath === nextProps.parentPath &&
-        prevProps.loadedChildren === nextProps.loadedChildren &&      // ADD THIS
-        prevProps.loadingChildren === nextProps.loadingChildren       // ADD THIS
+        prevProps.loadedChildren === nextProps.loadedChildren &&
+        prevProps.loadingChildren === nextProps.loadingChildren &&
+        prevProps.loadedThirdLevels === nextProps.loadedThirdLevels &&      // ADD THIS
+        prevProps.loadingThirdLevels === nextProps.loadingThirdLevels       // ADD THIS
       );
     }
   );
 
   return (
     <div className="min-h-screen bg-gray-50">
+    
       {/* Sidebar */}
       <Sidebar
         isSidebarOpen={isSidebarOpen}
@@ -1880,7 +1957,10 @@ level === "first"
                 level="first" 
                 fetchChildren={fetchChildren}          
                 loadedChildren={loadedChildren}        
-                loadingChildren={loadingChildren}      
+                loadingChildren={loadingChildren}
+                fetchThirdLevels={fetchThirdLevels}          // ADD THIS
+                loadedThirdLevels={loadedThirdLevels}        // ADD THIS
+                loadingThirdLevels={loadingThirdLevels}      // ADD THIS
               />
             ))}
           </div>
